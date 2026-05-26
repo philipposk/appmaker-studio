@@ -141,10 +141,18 @@ const appSchema = new mongoose.Schema({
     iterations: [{
       prompt: String,
       generatedAt: Date,
-      changes: String
+      changes: String,
+      provider: String,
+      model: String,
+      streamLog: { type: String, select: false },
+      filesChanged: [String],
+      tokensUsed: Number,
+      durationMs: Number,
+      source: { type: String, enum: ['legacy', 'stream', 'autofix'], default: 'legacy' }
     }],
     lastGenerated: Date,
-    model: String
+    model: String,
+    defaultProvider: { type: String, default: 'groq' }
   }
 }, {
   timestamps: true

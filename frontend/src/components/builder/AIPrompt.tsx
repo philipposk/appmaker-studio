@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../utils/hooks';
 import { generateApp, refineApp } from '../../store/slices/generationSlice';
 import { fetchApp } from '../../store/slices/appSlice';
-import { listProviders, streamGenerate, FileAction, StreamEvent } from '../../services/streamClient';
+import { listProviders, streamGenerate, saveStreamResult, FileAction, StreamEvent } from '../../services/streamClient';
 import { getActiveProvider } from '../../pages/ProviderSettings';
 import './AIPrompt.scss';
 
@@ -32,9 +32,15 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
   const [allProviders, setAllProviders] = useState<string[]>([]);
   const [streamLog, setStreamLog] = useState<string[]>([]);
   const [streamedFiles, setStreamedFiles] = useState<GeneratedFile[]>([]);
+  const [shellCommands, setShellCommands] = useState<string[]>([]);
   const [artifactName, setArtifactName] = useState<string>('');
   const [streamRunning, setStreamRunning] = useState<boolean>(false);
   const [streamError, setStreamError] = useState<string>('');
+  const [streamModel, setStreamModel] = useState<string>('');
+  const [tokensUsed, setTokensUsed] = useState<number | undefined>(undefined);
+  const [streamStartedAt, setStreamStartedAt] = useState<number>(0);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [savedAppId, setSavedAppId] = useState<string>('');
 
   useEffect(() => {
     listProviders()
@@ -90,9 +96,14 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
     if (!prompt.trim() || streamRunning) return;
     setStreamLog([]);
     setStreamedFiles([]);
+    setShellCommands([]);
     setArtifactName('');
     setStreamError('');
+    setStreamModel('');
+    setTokensUsed(undefined);
+    setSavedAppId('');
     setStreamRunning(true);
+    setStreamStartedAt(Date.now());
 
     const { provider: defaultProv, apiKey: storedKey } = getActiveProvider();
     const activeProvider = provider || defaultProv;
@@ -110,12 +121,21 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
         });
         log(`+ ${a.path} (${a.content.length} chars)`);
       } else if (a.type === 'delete') log(`- ${a.path}`);
-      else if (a.type === 'shell') log(`$ ${a.cmd}`);
+      else if (a.type === 'shell') {
+        log(`$ ${a.cmd}`);
+        setShellCommands((prev) => [...prev, a.cmd]);
+      }
     };
 
     const onEvent = (ev: StreamEvent) => {
       if (ev.type === 'action') onAction(ev.action);
-      else if (ev.type === 'done') log(`done — model ${ev.model || '?'}, tokens ${(ev as any).usage?.total_tokens ?? '?'}`);
+      else if (ev.type === 'done') {
+        const model = (ev as any).model || '';
+        const tokens = (ev as any).usage?.total_tokens;
+        if (model) setStreamModel(model);
+        if (tokens) setTokensUsed(tokens);
+        log(`done — model ${model || '?'}, tokens ${tokens ?? '?'}`);
+      }
       else if (ev.type === 'error') {
         setStreamError(ev.message);
         log(`ERROR: ${ev.message}`);
@@ -144,6 +164,37 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
   const onSubmit = (e: React.FormEvent) => {
     if (streamMode) return handleStream(e);
     return isExistingApp ? handleLegacyRefine(e) : handleLegacyGenerate(e);
+  };
+
+  const handleSaveStream = async () => {
+    if (!streamedFiles.length || saving) return;
+    setSaving(true);
+    try {
+      const res = await saveStreamResult({
+        appId: appId,
+        prompt: prompt.trim(),
+        provider,
+        model: streamModel,
+        files: streamedFiles,
+        shellCommands,
+        streamLog: streamLog.join('\n'),
+        tokensUsed,
+        durationMs: streamStartedAt ? Date.now() - streamStartedAt : undefined,
+        artifactName,
+        appType,
+      });
+      setSavedAppId(res?.app?._id || '');
+      if (!appId && res?.app?._id) {
+        // Newly created — navigate into its builder.
+        navigate(`/apps/${res.app._id}/builder`);
+      } else if (appId) {
+        dispatch(fetchApp(appId));
+      }
+    } catch (err: any) {
+      setStreamError(err?.message || String(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const busy = generating || streamRunning;
@@ -316,7 +367,24 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
 
         {streamMode && (streamedFiles.length > 0 || streamLog.length > 0) && (
           <div className="generation-history" style={{ marginTop: 24 }}>
-            <h3>{artifactName ? `📦 ${artifactName}` : 'Streaming output'}</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>{artifactName ? `📦 ${artifactName}` : 'Streaming output'}</h3>
+              {streamedFiles.length > 0 && !streamRunning && (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={handleSaveStream}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving…' : appId ? '💾 Save to this App' : '💾 Save as New App'}
+                </button>
+              )}
+            </div>
+            {savedAppId && (
+              <div className="alert alert--success" style={{ marginBottom: 12 }}>
+                Saved. App id: <code>{savedAppId}</code>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <h4 style={{ fontSize: 13, opacity: 0.8 }}>Files ({streamedFiles.length})</h4>

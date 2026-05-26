@@ -104,3 +104,39 @@ export async function listProviders(): Promise<{ available: string[]; all: strin
   const res = await fetch(`${API}/stream/providers`);
   return res.json();
 }
+
+export interface SaveStreamBody {
+  appId?: string;
+  prompt?: string;
+  provider?: string;
+  model?: string;
+  files: { path: string; content: string }[];
+  shellCommands?: string[];
+  streamLog?: string;
+  tokensUsed?: number;
+  durationMs?: number;
+  artifactName?: string;
+  appType?: string;
+  description?: string;
+}
+
+/**
+ * Persist streamed files into a new or existing App via the auth-protected
+ * apps controller. Pulls the JWT from localStorage (same place api.ts uses).
+ */
+export async function saveStreamResult(body: SaveStreamBody) {
+  const token = localStorage.getItem('token') || '';
+  const res = await fetch(`${API}/apps/save-stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`save-stream failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
