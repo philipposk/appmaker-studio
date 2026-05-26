@@ -25,6 +25,8 @@ export function useGlobalDesignStyles() {
         animation: amBlink 1.1s steps(1) infinite;
       }
       @keyframes amBlink { 50% { opacity: 0; } }
+      @keyframes am-caret { 50% { opacity: 0; } }
+      @keyframes spin { to { transform: rotate(360deg); } }
       ::-webkit-scrollbar { width: 10px; height: 10px; }
       ::-webkit-scrollbar-thumb { background: ${TOKENS.hairline2}; border-radius: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
