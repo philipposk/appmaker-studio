@@ -16,6 +16,7 @@ backend/temp/
 frontend/temp/
 backend/downloads/
 backend/logs.txt
+_inbox_zip/
 
 # Misc
 .DS_Store
