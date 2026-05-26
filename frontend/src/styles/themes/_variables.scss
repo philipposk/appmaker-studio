@@ -1,0 +1,90 @@
+// Light Theme Colors
+$light-bg-primary: #ffffff;
+$light-bg-secondary: #f5f5f5;
+$light-bg-tertiary: #e8e8e8;
+$light-text-primary: #1a1a1a;
+$light-text-secondary: #666666;
+$light-text-tertiary: #999999;
+$light-border: #e0e0e0;
+$light-accent: #007bff;
+$light-accent-hover: #0056b3;
+$light-success: #28a745;
+$light-error: #dc3545;
+$light-warning: #ffc107;
+
+// Dark Theme Colors
+$dark-bg-primary: #1a1a1a;
+$dark-bg-secondary: #2d2d2d;
+$dark-bg-tertiary: #3d3d3d;
+$dark-text-primary: #ffffff;
+$dark-text-secondary: #b3b3b3;
+$dark-text-tertiary: #808080;
+$dark-border: #404040;
+$dark-accent: #4dabf7;
+$dark-accent-hover: #339af0;
+$dark-success: #51cf66;
+$dark-error: #ff6b6b;
+$dark-warning: #ffd43b;
+
+// CSS Variables for Theming
+:root[data-theme="light"] {
+  --bg-primary: #{$light-bg-primary};
+  --bg-secondary: #{$light-bg-secondary};
+  --bg-tertiary: #{$light-bg-tertiary};
+  --text-primary: #{$light-text-primary};
+  --text-secondary: #{$light-text-secondary};
+  --text-tertiary: #{$light-text-tertiary};
+  --border: #{$light-border};
+  --accent: #{$light-accent};
+  --accent-hover: #{$light-accent-hover};
+  --success: #{$light-success};
+  --error: #{$light-error};
+  --warning: #{$light-warning};
+}
+
+:root[data-theme="dark"] {
+  --bg-primary: #{$dark-bg-primary};
+  --bg-secondary: #{$dark-bg-secondary};
+  --bg-tertiary: #{$dark-bg-tertiary};
+  --text-primary: #{$dark-text-primary};
+  --text-secondary: #{$dark-text-secondary};
+  --text-tertiary: #{$dark-text-tertiary};
+  --border: #{$dark-border};
+  --accent: #{$dark-accent};
+  --accent-hover: #{$dark-accent-hover};
+  --success: #{$dark-success};
+  --error: #{$dark-error};
+  --warning: #{$dark-warning};
+}
+
+// Typography
+$font-family-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+$font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas,
+  'Courier New', monospace;
+
+// Spacing
+$spacing-xs: 0.25rem;
+$spacing-sm: 0.5rem;
+$spacing-md: 1rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
+$spacing-2xl: 3rem;
+
+// Border Radius
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 12px;
+$radius-xl: 16px;
+
+// Shadows
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+
+// Transitions
+$transition-fast: 150ms ease-in-out;
+$transition-base: 250ms ease-in-out;
+$transition-slow: 350ms ease-in-out;
+

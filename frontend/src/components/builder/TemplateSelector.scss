@@ -1,0 +1,130 @@
+@import '../../styles/themes/variables';
+
+.template-selector {
+  padding: $spacing-xl;
+  max-width: 1400px;
+  margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.template-header {
+  text-align: center;
+  margin-bottom: $spacing-xl;
+
+  h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: $spacing-sm;
+  }
+
+  p {
+    color: var(--text-secondary);
+    font-size: 1.125rem;
+  }
+}
+
+.template-categories {
+  display: flex;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-xl;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.category-btn {
+  padding: $spacing-sm $spacing-lg;
+  border: 1px solid var(--border);
+  border-radius: $radius-md;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all $transition-base;
+  font-weight: 500;
+
+  &:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background-color: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: $spacing-lg;
+}
+
+.template-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: $radius-lg;
+  padding: $spacing-xl;
+  cursor: pointer;
+  transition: all $transition-base;
+  box-shadow: $shadow-sm;
+  display: flex;
+  flex-direction: column;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: $shadow-lg;
+    border-color: var(--accent);
+  }
+
+  .template-icon {
+    font-size: 3rem;
+    margin-bottom: $spacing-md;
+  }
+
+  h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: $spacing-sm;
+  }
+
+  p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: $spacing-lg;
+    flex: 1;
+  }
+}
+
+.template-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: $spacing-md;
+  border-top: 1px solid var(--border);
+}
+
+.template-category {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  text-transform: capitalize;
+}
+
+.btn--small {
+  padding: $spacing-xs $spacing-md;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+  .template-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .template-selector {
+    padding: $spacing-md;
+  }
+}
+

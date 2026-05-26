@@ -1,0 +1,66 @@
+@import '../../styles/themes/variables';
+
+.visual-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+
+  &-toolbar {
+    padding: $spacing-md $spacing-lg;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+
+    h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: $spacing-xs;
+    }
+
+    p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin: 0;
+    }
+  }
+}
+
+.gjs-editor {
+  flex: 1;
+  overflow: hidden;
+
+  // Override GrapesJS styles for theme compatibility
+  :global(.gjs-cv-canvas) {
+    background-color: var(--bg-primary) !important;
+  }
+
+  :global(.gjs-pn-panels) {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--border) !important;
+  }
+
+  :global(.gjs-pn-btn) {
+    color: var(--text-primary) !important;
+  }
+
+  :global(.gjs-pn-btn:hover) {
+    background-color: var(--bg-tertiary) !important;
+  }
+
+  :global(.gjs-sm-sector) {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--border) !important;
+  }
+
+  :global(.gjs-sm-label) {
+    color: var(--text-primary) !important;
+  }
+
+  :global(.gjs-field) {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border) !important;
+  }
+}
+

@@ -1,0 +1,79 @@
+@import '../styles/themes/variables';
+
+.app-form-page {
+  padding: $spacing-xl 0;
+}
+
+.app-form-container {
+  max-width: 800px;
+  margin: 0 auto;
+
+  .form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: $spacing-md;
+    flex-wrap: wrap;
+    gap: $spacing-md;
+  }
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+}
+
+.template-mode {
+  width: 100%;
+}
+
+.form-subtitle {
+  color: var(--text-secondary);
+  margin-bottom: $spacing-xl;
+}
+
+.app-form {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: $radius-lg;
+  padding: $spacing-xl;
+  box-shadow: $shadow-sm;
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: $spacing-md;
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+.form-actions {
+  display: flex;
+  gap: $spacing-md;
+  margin-top: $spacing-xl;
+  padding-top: $spacing-lg;
+  border-top: 1px solid var(--border);
+}
+
+.form-help {
+  display: block;
+  margin-top: $spacing-xs;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
+}
+
+select.input {
+  cursor: pointer;
+}
+

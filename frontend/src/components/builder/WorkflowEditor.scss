@@ -1,0 +1,71 @@
+@import '../../styles/themes/variables';
+
+.workflow-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+
+  &-toolbar {
+    padding: $spacing-md $spacing-lg;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+
+    h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: $spacing-xs;
+    }
+
+    p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin: 0;
+    }
+  }
+}
+
+.workflow-canvas {
+  flex: 1;
+  background-color: var(--bg-primary);
+
+  :global(.react-flow) {
+    background-color: var(--bg-primary);
+  }
+
+  :global(.react-flow__node) {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  :global(.react-flow__handle) {
+    background-color: var(--accent);
+  }
+
+  :global(.react-flow__edge-path) {
+    stroke: var(--accent);
+  }
+
+  :global(.react-flow__controls) {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+  }
+
+  :global(.react-flow__controls-button) {
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+
+    &:hover {
+      background-color: var(--bg-tertiary);
+    }
+  }
+
+  :global(.react-flow__minimap) {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+  }
+}
+

@@ -1,0 +1,121 @@
+@import '../../styles/themes/variables';
+
+.code-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+
+.code-editor-layout {
+  display: flex;
+  height: 100%;
+}
+
+.code-editor-sidebar {
+  width: 250px;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: $spacing-md;
+  border-bottom: 1px solid var(--border);
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+}
+
+.file-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-sm;
+}
+
+.file-tree-section {
+  margin-bottom: $spacing-lg;
+
+  h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: $spacing-sm;
+    padding: 0 $spacing-sm;
+  }
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-xs $spacing-sm;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-base;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+
+  &:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  .file-icon {
+    font-size: 0.875rem;
+  }
+
+  .file-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.code-editor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-header {
+  padding: $spacing-sm $spacing-md;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+
+  .file-path {
+    font-family: $font-family-mono;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+}
+
+.code-editor-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .code-editor-sidebar {
+    width: 200px;
+  }
+}
+

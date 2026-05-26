@@ -1,0 +1,132 @@
+@import '../../styles/themes/variables';
+
+.ai-prompt {
+  padding: $spacing-xl;
+  max-width: 900px;
+  margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.ai-prompt-container {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: $radius-lg;
+  padding: $spacing-2xl;
+  box-shadow: $shadow-md;
+}
+
+.ai-prompt-header {
+  margin-bottom: $spacing-xl;
+
+  h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: $spacing-sm;
+  }
+
+  &__subtitle {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+}
+
+.ai-prompt-form {
+  .prompt-textarea {
+    font-family: $font-family-mono;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .form-help {
+    display: block;
+    margin-top: $spacing-xs;
+    color: var(--text-tertiary);
+    font-size: 0.875rem;
+  }
+}
+
+.form-actions {
+  margin-top: $spacing-xl;
+  display: flex;
+  gap: $spacing-md;
+}
+
+.btn--large {
+  padding: $spacing-md $spacing-2xl;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.spinner--small {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+  margin-right: $spacing-sm;
+}
+
+.generation-history {
+  margin-top: $spacing-2xl;
+  padding-top: $spacing-xl;
+  border-top: 1px solid var(--border);
+
+  h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: $spacing-md;
+  }
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+}
+
+.history-item {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: $radius-md;
+  padding: $spacing-md;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: $spacing-sm;
+  }
+
+  .history-index {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .history-date {
+    font-size: 0.875rem;
+    color: var(--text-tertiary);
+  }
+
+  .history-prompt {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .ai-prompt {
+    padding: $spacing-md;
+  }
+
+  .ai-prompt-container {
+    padding: $spacing-lg;
+  }
+
+  .ai-prompt-header h2 {
+    font-size: 1.5rem;
+  }
+}
+

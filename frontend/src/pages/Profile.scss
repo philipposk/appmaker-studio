@@ -1,0 +1,21 @@
+@import '../styles/themes/variables';
+@import './AppDetail.scss';
+
+.profile-page {
+  padding: $spacing-xl 0;
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: $spacing-xl;
+  }
+}
+
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+  max-width: 800px;
+}
+

@@ -1,0 +1,139 @@
+@import '../styles/themes/variables';
+
+.app-detail-page {
+  padding: $spacing-xl 0;
+}
+
+.app-detail-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  margin-bottom: $spacing-xl;
+  flex-wrap: wrap;
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+    flex-wrap: wrap;
+  }
+}
+
+.app-detail-content {
+  display: flex;
+  gap: $spacing-xl;
+  flex-direction: column;
+}
+
+.app-detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+}
+
+.card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: $radius-lg;
+  box-shadow: $shadow-sm;
+
+  &__header {
+    padding: $spacing-lg;
+    border-bottom: 1px solid var(--border);
+
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+  }
+
+  &__content {
+    padding: $spacing-lg;
+  }
+
+  &__actions {
+    margin-top: $spacing-md;
+    padding-top: $spacing-md;
+    border-top: 1px solid var(--border);
+  }
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: $spacing-sm 0;
+  border-bottom: 1px solid var(--border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.info-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.info-value {
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.integration-status {
+  &.enabled {
+    color: var(--success);
+  }
+
+  &.disabled {
+    color: var(--error);
+  }
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: $spacing-lg;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: $spacing-lg;
+  background-color: var(--bg-tertiary);
+  border-radius: $radius-md;
+
+  .stat-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: $spacing-xs;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+}
+
+@media (max-width: 768px) {
+  .info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: $spacing-xs;
+
+    .info-value {
+      text-align: left;
+    }
+  }
+}
+
