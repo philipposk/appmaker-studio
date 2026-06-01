@@ -526,20 +526,24 @@ const RecentSection: React.FC<{ recents: any[] }> = ({ recents }) => {
         >
           Recent projects
         </h2>
-        <a
+        <button
+          type="button"
           onClick={() => navigate('/apps')}
           style={{
             fontSize: 12.5,
             color: TOKENS.text2,
-            textDecoration: 'none',
+            background: 'transparent',
+            border: 0,
+            padding: 0,
             display: 'inline-flex',
             alignItems: 'center',
             gap: 4,
             cursor: 'pointer',
+            fontFamily: 'inherit',
           }}
         >
           View all <I.Arrow size={13} />
-        </a>
+        </button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
         {recents.length === 0 && (

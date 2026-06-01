@@ -1,0 +1,51 @@
+# ── AppMaker full stack ────────────────────────────────────────
+# One command brings up MongoDB + the API + the web UI:
+#
+#   cp backend/.env.example .env        # then edit JWT_SECRET etc.
+#   docker compose up -d --build
+#
+# UI  -> http://localhost:8080
+# API -> http://localhost:8000/api/health
+#
+# Values come from a root `.env` file (see the ${VAR} references below).
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    # Not published to the host by default — only the backend reaches it
+    # over the internal compose network. Uncomment to inspect locally:
+    # ports:
+    #   - "27017:27017"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: production
+      PORT: 8000
+      MONGODB_URI: mongodb://mongo:27017/appmaker
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your .env}
+      JWT_EXPIRE: ${JWT_EXPIRE:-7d}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000/api}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mongo_data:
