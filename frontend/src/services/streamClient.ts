@@ -1,9 +1,15 @@
 /**
- * SSE client for /api/stream/generate and /api/autofix.
+ * SSE client — talks to the Supabase Edge Function (appmaker-stream)
+ * instead of the old Express backend.
  *
- * Plain EventSource only supports GET. We POST a JSON body, then read the
- * response body as a text stream and parse SSE manually.
+ * Auth: reads the current Supabase session access_token and sends it
+ * as Authorization: Bearer. The Edge Function has verify_jwt: true.
+ *
+ * Save: writes directly to appmaker.apps / appmaker.iterations via
+ * supabase-js (handled in appSlice.ts — not here).
  */
+
+import { supabase } from '../lib/supabase';
 
 export type StreamEvent =
   | { type: 'token'; delta: string }
@@ -11,6 +17,7 @@ export type StreamEvent =
   | { type: 'done'; usage?: any; model?: string }
   | { type: 'error'; message: string }
   | { type: 'complete'; ok: boolean }
+  // autofix events (kept for forward-compat, AutoFix now runs in browser)
   | { type: 'iteration_start'; iteration: number }
   | { type: 'validators'; iteration: number; results: any }
   | { type: 'patch_applied'; iteration: number; files: number }
@@ -34,28 +41,43 @@ export interface GenerateOptions {
   refineFrom?: string;
 }
 
-const API = (process.env.REACT_APP_API_URL as string) || 'http://localhost:8000/api';
+/** Edge Function URL — set REACT_APP_SUPABASE_URL in .env */
+const SUPABASE_URL = (process.env.REACT_APP_SUPABASE_URL as string)
+  || 'https://fmrnqepyyjucnfbrqawl.supabase.co';
+
+const EDGE_STREAM_URL = `${SUPABASE_URL}/functions/v1/appmaker-stream`;
+
+/** Get the current session's access token (used as Bearer in Edge Fn auth). */
+async function getToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 /**
- * POST an SSE stream and yield parsed events.
- * Aborted via the returned `cancel` function.
+ * POST to the streaming Edge Function and yield parsed SSE events.
+ * Returns { promise, cancel }.
  */
 export function postSSE(
-  path: string,
+  url: string,
   body: any,
   onEvent: (ev: StreamEvent) => void,
 ): { promise: Promise<void>; cancel: () => void } {
   const controller = new AbortController();
   const promise = (async () => {
-    const res = await fetch(`${API}${path}`, {
+    const token = await getToken();
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => '');
-      throw new Error(`SSE request failed: ${res.status} ${text}`);
+      throw new Error(`Stream request failed: ${res.status} ${text}`);
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -64,7 +86,7 @@ export function postSSE(
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      let idx;
+      let idx: number;
       while ((idx = buffer.indexOf('\n\n')) >= 0) {
         const raw = buffer.slice(0, idx);
         buffer = buffer.slice(idx + 2);
@@ -72,7 +94,7 @@ export function postSSE(
         let event = 'message';
         const dataLines: string[] = [];
         for (const line of lines) {
-          if (line.startsWith(':')) continue; // heartbeat
+          if (line.startsWith(':')) continue;
           if (line.startsWith('event:')) event = line.slice(6).trim();
           else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
         }
@@ -80,9 +102,7 @@ export function postSSE(
         try {
           const data = JSON.parse(dataLines.join('\n'));
           onEvent({ type: event, ...data } as StreamEvent);
-        } catch {
-          /* ignore malformed */
-        }
+        } catch { /* ignore malformed */ }
       }
     }
   })();
@@ -90,19 +110,24 @@ export function postSSE(
 }
 
 export function streamGenerate(opts: GenerateOptions, onEvent: (ev: StreamEvent) => void) {
-  return postSSE('/stream/generate', opts, onEvent);
+  return postSSE(EDGE_STREAM_URL, opts, onEvent);
 }
 
-export function streamAutoFix(
-  body: { projectDir: string; provider?: string; apiKey?: string; maxIterations?: number },
-  onEvent: (ev: StreamEvent) => void,
-) {
-  return postSSE('/autofix', body, onEvent);
-}
-
+/** listProviders: static list now that the Edge Function handles all providers. */
 export async function listProviders(): Promise<{ available: string[]; all: string[] }> {
-  const res = await fetch(`${API}/stream/providers`);
-  return res.json();
+  return {
+    available: [], // availability is provider-key-dependent and checked by Edge Fn at runtime
+    all: ['groq', 'openai', 'openrouter', 'anthropic', 'together', 'mistral', 'ollama'],
+  };
+}
+
+/** streamAutoFix is kept for API compat but AutoFix runs in the browser now (WebContainer). */
+export function streamAutoFix(
+  _body: { projectDir: string; provider?: string; apiKey?: string; maxIterations?: number },
+  _onEvent: (ev: StreamEvent) => void,
+): { promise: Promise<void>; cancel: () => void } {
+  const promise = Promise.reject(new Error('AutoFix runs in-browser via WebContainer — no server call needed.'));
+  return { promise, cancel: () => {} };
 }
 
 export interface SaveStreamBody {
@@ -121,22 +146,80 @@ export interface SaveStreamBody {
 }
 
 /**
- * Persist streamed files into a new or existing App via the auth-protected
- * apps controller. Pulls the JWT from localStorage (same place api.ts uses).
+ * Save is now handled directly via supabase-js in appSlice.ts.
+ * This shim is kept so existing call-sites compile; it delegates to appSlice.
+ * Returns { app: { id } } to match old shape.
  */
-export async function saveStreamResult(body: SaveStreamBody) {
-  const token = localStorage.getItem('token') || '';
-  const res = await fetch(`${API}/apps/save-stream`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+export async function saveStreamResult(body: SaveStreamBody): Promise<{ app: { _id: string } }> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) throw new Error('Not authenticated');
+
+  const appPayload = {
+    user_id:      userId,
+    name:         body.artifactName || body.prompt?.slice(0, 60) || 'New App',
+    description:  body.description || body.prompt?.slice(0, 200),
+    type:         body.appType || 'web',
+    status:       'draft',
+    generated_code: {
+      files: body.files,
+      shellCommands: body.shellCommands,
     },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`save-stream failed: ${res.status} ${text}`);
+    generation: {
+      prompt: body.prompt,
+      defaultProvider: body.provider,
+    },
+  };
+
+  if (body.appId) {
+    // Update existing
+    const { error } = await supabase
+      .schema('appmaker')
+      .from('apps')
+      .update({ ...appPayload, updated_at: new Date().toISOString() })
+      .eq('id', body.appId)
+      .eq('user_id', userId);
+    if (error) throw new Error(error.message);
+
+    // Insert iteration
+    await supabase.schema('appmaker').from('iterations').insert({
+      app_id:        body.appId,
+      user_id:       userId,
+      prompt:        body.prompt,
+      provider:      body.provider,
+      model:         body.model,
+      stream_log:    body.streamLog,
+      files_changed: body.files.map(f => f.path),
+      tokens_used:   body.tokensUsed,
+      duration_ms:   body.durationMs,
+      source:        'stream',
+    });
+
+    return { app: { _id: body.appId } };
   }
-  return res.json();
+
+  // Create new app
+  const { data, error } = await supabase
+    .schema('appmaker')
+    .from('apps')
+    .insert(appPayload)
+    .select('id')
+    .single();
+  if (error || !data) throw new Error(error?.message ?? 'Insert failed');
+
+  // Insert first iteration
+  await supabase.schema('appmaker').from('iterations').insert({
+    app_id:        data.id,
+    user_id:       userId,
+    prompt:        body.prompt,
+    provider:      body.provider,
+    model:         body.model,
+    stream_log:    body.streamLog,
+    files_changed: body.files.map(f => f.path),
+    tokens_used:   body.tokensUsed,
+    duration_ms:   body.durationMs,
+    source:        'stream',
+  });
+
+  return { app: { _id: data.id } };
 }

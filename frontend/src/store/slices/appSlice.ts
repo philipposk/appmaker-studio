@@ -1,5 +1,14 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import api from '../../services/api';
+import { supabase } from '../../lib/supabase';
+
+/**
+ * App slice — data layer backed by Supabase (appmaker schema, RLS-protected).
+ * All operations go straight to Postgres via supabase-js.
+ * No Express backend required.
+ *
+ * The App interface keeps `_id` (string uuid) as the identifier so the rest of
+ * the codebase (AppBuilder, Dashboard, AIPrompt, etc.) doesn't need updating.
+ */
 
 export interface App {
   _id: string;
@@ -8,98 +17,44 @@ export interface App {
   type: 'web' | 'mobile' | 'api' | 'integration';
   status: 'draft' | 'active' | 'paused' | 'archived';
   owner?: string;
-  configuration?: {
-    provider?: 'aws' | 'azure' | 'google-cloud' | 'custom';
-    groqAPIKey?: string;
-    groqModel?: string;
-    settings?: Record<string, any>;
-  };
+  configuration?: Record<string, any>;
   integrations?: {
-    groq?: {
-      enabled: boolean;
-      connectedAt?: string;
-      lastUsed?: string;
-      usageCount?: number;
-    };
+    groq?: { enabled: boolean; connectedAt?: string; lastUsed?: string; usageCount?: number };
+    [key: string]: any;
   };
   metadata?: {
     version?: string;
     tags?: string[];
     category?: string;
     isPublic?: boolean;
-    media?: Array<{
-      type: 'image' | 'video';
-      url: string;
-      thumbnail?: string;
-    }>;
+    media?: Array<{ type: 'image' | 'video'; url: string; thumbnail?: string }>;
   };
-  statistics?: {
-    views: number;
-    interactions: number;
-    lastAccessed?: string;
-  };
+  statistics?: { views: number; interactions: number; lastAccessed?: string };
   generatedCode?: {
-    frontend?: {
-      code?: string;
-      structure?: Array<{
-        path: string;
-        content: string;
-        type?: string;
-        name?: string;
-      }>;
-      dependencies?: Record<string, string> | Map<string, string>;
-    };
-    backend?: {
-      code?: string;
-      structure?: Array<{
-        path: string;
-        content: string;
-        type?: string;
-        name?: string;
-      }>;
-      dependencies?: Record<string, string> | Map<string, string>;
-    };
-    config?: {
-      packageJson?: any;
-      buildConfig?: any;
-    };
+    files?: Array<{ path: string; content: string }>;
+    shellCommands?: string[];
+    frontend?: { structure?: Array<{ path: string; content: string; type?: string }> };
+    backend?:  { structure?: Array<{ path: string; content: string; type?: string }> };
   };
-  tests?: {
-    unitTests?: Array<{
-      path: string;
-      content: string;
-      status?: 'pass' | 'fail' | 'pending';
-      results?: any;
-      lastRun?: string;
-    }>;
-    integrationTests?: Array<{
-      path: string;
-      content: string;
-      status?: 'pass' | 'fail' | 'pending';
-      results?: any;
-      lastRun?: string;
-    }>;
-    testCoverage?: {
-      lines?: number;
-      functions?: number;
-      branches?: number;
-      statements?: number;
-    };
-  };
+  tests?: Record<string, any>;
   deployment?: {
     status?: 'not_deployed' | 'building' | 'deployed' | 'failed';
     url?: string;
-    buildId?: string;
-    deployedAt?: string;
     platform?: 'vercel' | 'netlify' | 'custom';
-    env?: Record<string, string> | Map<string, string>;
   };
   generation?: {
     prompt?: string;
+    defaultProvider?: string;
     iterations?: Array<{
       prompt: string;
       generatedAt: string;
       changes?: string;
+      provider?: string;
+      model?: string;
+      filesChanged?: string[];
+      tokensUsed?: number;
+      durationMs?: number;
+      source?: string;
     }>;
     lastGenerated?: string;
     model?: string;
@@ -115,149 +70,165 @@ interface AppState {
   error: string | null;
 }
 
-const initialState: AppState = {
-  apps: [],
-  currentApp: null,
-  loading: false,
-  error: null,
-};
+const initialState: AppState = { apps: [], currentApp: null, loading: false, error: null };
 
-// Async thunks
-export const fetchApps = createAsyncThunk(
-  'apps/fetchApps',
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await api.get('/apps');
-      return response.data.apps;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch apps');
-    }
-  }
-);
+/** Map a Postgres row (snake_case + jsonb) → App (camelCase + _id) */
+function rowToApp(row: any): App {
+  return {
+    _id:           row.id,
+    name:          row.name,
+    description:   row.description,
+    type:          row.type,
+    status:        row.status,
+    owner:         row.user_id,
+    configuration: row.configuration,
+    metadata:      row.metadata,
+    statistics:    row.statistics,
+    generatedCode: row.generated_code,
+    tests:         row.tests,
+    deployment:    row.deployment,
+    generation:    row.generation,
+    createdAt:     row.created_at,
+    updatedAt:     row.updated_at,
+  };
+}
 
-export const fetchApp = createAsyncThunk(
-  'apps/fetchApp',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/apps/${id}`);
-      return response.data.app;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch app');
-    }
-  }
-);
+// ── Thunks ─────────────────────────────────────────────────────
 
-export const createApp = createAsyncThunk(
-  'apps/createApp',
-  async (appData: Partial<App>, { rejectWithValue }) => {
-    try {
-      const response = await api.post('/apps', appData);
-      return response.data.app;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create app');
-    }
-  }
-);
+export const fetchApps = createAsyncThunk('apps/fetchApps', async (_, { rejectWithValue }) => {
+  const { data, error } = await supabase
+    .schema('appmaker')
+    .from('apps')
+    .select('id,name,description,type,status,user_id,metadata,statistics,generation,deployment,created_at,updated_at')
+    .order('updated_at', { ascending: false });
+  if (error) return rejectWithValue(error.message);
+  return (data ?? []).map(rowToApp);
+});
+
+export const fetchApp = createAsyncThunk('apps/fetchApp', async (id: string, { rejectWithValue }) => {
+  // Main app row
+  const { data: appRow, error: appErr } = await supabase
+    .schema('appmaker')
+    .from('apps')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (appErr || !appRow) return rejectWithValue(appErr?.message ?? 'Not found');
+
+  // Iteration history
+  const { data: iters } = await supabase
+    .schema('appmaker')
+    .from('iterations')
+    .select('id,prompt,provider,model,files_changed,tokens_used,duration_ms,source,created_at')
+    .eq('app_id', id)
+    .order('created_at', { ascending: true });
+
+  const app = rowToApp(appRow);
+  app.generation = {
+    ...app.generation,
+    iterations: (iters ?? []).map(it => ({
+      prompt:        it.prompt ?? '',
+      generatedAt:   it.created_at,
+      provider:      it.provider,
+      model:         it.model,
+      filesChanged:  it.files_changed ?? [],
+      tokensUsed:    it.tokens_used,
+      durationMs:    it.duration_ms,
+      source:        it.source,
+    })),
+  };
+  return app;
+});
+
+export const createApp = createAsyncThunk('apps/createApp', async (appData: Partial<App>, { rejectWithValue }) => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) return rejectWithValue('Not authenticated');
+
+  const { data, error } = await supabase
+    .schema('appmaker')
+    .from('apps')
+    .insert({
+      user_id:     userId,
+      name:        appData.name || 'Untitled',
+      description: appData.description,
+      type:        appData.type ?? 'web',
+      status:      appData.status ?? 'draft',
+      metadata:    appData.metadata ?? {},
+    })
+    .select()
+    .single();
+  if (error || !data) return rejectWithValue(error?.message ?? 'Insert failed');
+  return rowToApp(data);
+});
 
 export const updateApp = createAsyncThunk(
   'apps/updateApp',
-  async ({ id, data }: { id: string; data: Partial<App> }, { rejectWithValue }) => {
-    try {
-      const response = await api.put(`/apps/${id}`, data);
-      return response.data.app;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update app');
-    }
-  }
+  async ({ id, data: patch }: { id: string; data: Partial<App> }, { rejectWithValue }) => {
+    const { data, error } = await supabase
+      .schema('appmaker')
+      .from('apps')
+      .update({
+        name:          patch.name,
+        description:   patch.description,
+        status:        patch.status,
+        metadata:      patch.metadata,
+        statistics:    patch.statistics,
+        generated_code: patch.generatedCode,
+        deployment:    patch.deployment,
+        generation:    patch.generation,
+        updated_at:    new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error || !data) return rejectWithValue(error?.message ?? 'Update failed');
+    return rowToApp(data);
+  },
 );
 
-export const deleteApp = createAsyncThunk(
-  'apps/deleteApp',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      await api.delete(`/apps/${id}`);
-      return id;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete app');
-    }
-  }
-);
+export const deleteApp = createAsyncThunk('apps/deleteApp', async (id: string, { rejectWithValue }) => {
+  const { error } = await supabase.schema('appmaker').from('apps').delete().eq('id', id);
+  if (error) return rejectWithValue(error.message);
+  return id;
+});
 
-export const testGroq = createAsyncThunk(
-  'apps/testGroq',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const response = await api.post(`/apps/${id}/test-groq`);
-      return { id, result: response.data };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to test Groq');
-    }
-  }
-);
+// Kept for compat — no-op (Groq calls now go through Edge Function, not here).
+export const testGroq = createAsyncThunk('apps/testGroq', async (_id: string) => ({ id: _id, result: null }));
+
+// ── Slice ───────────────────────────────────────────────────────
 
 const appSlice = createSlice({
   name: 'apps',
   initialState,
   reducers: {
-    setCurrentApp: (state, action: PayloadAction<App | null>) => {
-      state.currentApp = action.payload;
-    },
-    clearError: (state) => {
-      state.error = null;
-    },
+    setCurrentApp: (state, action: PayloadAction<App | null>) => { state.currentApp = action.payload; },
+    clearError:    (state) => { state.error = null; },
   },
   extraReducers: (builder) => {
     builder
-      // Fetch Apps
-      .addCase(fetchApps.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+      .addCase(fetchApps.pending,  (s) => { s.loading = true;  s.error = null; })
+      .addCase(fetchApps.fulfilled,(s, a) => { s.loading = false; s.apps = a.payload; })
+      .addCase(fetchApps.rejected, (s, a) => { s.loading = false; s.error = a.payload as string; })
+
+      .addCase(fetchApp.pending,   (s) => { s.loading = true;  s.error = null; })
+      .addCase(fetchApp.fulfilled, (s, a) => { s.loading = false; s.currentApp = a.payload; })
+      .addCase(fetchApp.rejected,  (s, a) => { s.loading = false; s.error = a.payload as string; })
+
+      .addCase(createApp.fulfilled,(s, a) => { s.apps.unshift(a.payload); })
+
+      .addCase(updateApp.fulfilled,(s, a) => {
+        const i = s.apps.findIndex(app => app._id === a.payload._id);
+        if (i !== -1) s.apps[i] = a.payload;
+        if (s.currentApp?._id === a.payload._id) s.currentApp = a.payload;
       })
-      .addCase(fetchApps.fulfilled, (state, action) => {
-        state.loading = false;
-        state.apps = action.payload;
-      })
-      .addCase(fetchApps.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // Fetch App
-      .addCase(fetchApp.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchApp.fulfilled, (state, action) => {
-        state.loading = false;
-        state.currentApp = action.payload;
-      })
-      .addCase(fetchApp.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // Create App
-      .addCase(createApp.fulfilled, (state, action) => {
-        state.apps.unshift(action.payload);
-      })
-      // Update App
-      .addCase(updateApp.fulfilled, (state, action) => {
-        const index = state.apps.findIndex(app => app._id === action.payload._id);
-        if (index !== -1) {
-          state.apps[index] = action.payload;
-        }
-        if (state.currentApp?._id === action.payload._id) {
-          state.currentApp = action.payload;
-        }
-      })
-      // Delete App
-      .addCase(deleteApp.fulfilled, (state, action) => {
-        state.apps = state.apps.filter(app => app._id !== action.payload);
-        if (state.currentApp?._id === action.payload) {
-          state.currentApp = null;
-        }
+
+      .addCase(deleteApp.fulfilled,(s, a) => {
+        s.apps = s.apps.filter(app => app._id !== a.payload);
+        if (s.currentApp?._id === a.payload) s.currentApp = null;
       });
   },
 });
 
 export const { setCurrentApp, clearError } = appSlice.actions;
 export default appSlice.reducer;
-

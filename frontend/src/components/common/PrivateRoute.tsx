@@ -1,25 +1,22 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAppSelector } from '../../utils/hooks';
+import { TOKENS } from '../../design';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading, token } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, loading } = useAppSelector((s) => s.auth);
 
-  // Show loading if we have a token but auth status is not yet determined
-  if (loading || (token && !isAuthenticated)) {
+  if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div className="spinner"></div>
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: TOKENS.bg }}>
+        <div className="spinner" />
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   return <>{children}</>;
 };
 
 export default PrivateRoute;
-

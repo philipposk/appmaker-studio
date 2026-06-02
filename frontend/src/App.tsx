@@ -3,8 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Provider } from 'react-redux';
 import { store } from './store/store';
 import { useAppDispatch, useAppSelector } from './utils/hooks';
-import { getMe } from './store/slices/authSlice';
+import { getMe, setSession } from './store/slices/authSlice';
 import { setTheme } from './store/slices/themeSlice';
+import { supabase } from './lib/supabase';
 import './styles/index.scss';
 
 // Components
@@ -22,28 +23,34 @@ import Admin from './pages/Admin';
 import ProviderSettings from './pages/ProviderSettings';
 import PrivateRoute from './components/common/PrivateRoute';
 
-// App Content with Routes
 const AppContent = () => {
   const dispatch = useAppDispatch();
-  const { isAuthenticated, token, loading } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, loading } = useAppSelector((state) => state.auth);
   const { theme } = useAppSelector((state) => state.theme);
 
   useEffect(() => {
-    // Initialize theme
+    // Theme init
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' || theme;
     dispatch(setTheme(savedTheme));
     document.documentElement.setAttribute('data-theme', savedTheme);
 
-    // Load user if token exists
-    if (token && !isAuthenticated) {
-      dispatch(getMe());
-    }
-  }, [dispatch, token, isAuthenticated]);
+    // Restore existing Supabase session on boot (checks cookies).
+    dispatch(getMe());
 
-  if (loading && token) {
+    // Keep Redux in sync whenever Supabase refreshes the token or the user
+    // signs in / out in another tab.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      dispatch(setSession({ session }));
+    });
+
+    return () => subscription.unsubscribe();
+  }, [dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Block render until we've finished the initial session check.
+  if (loading) {
     return (
-      <div className="app-layout" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div className="spinner"></div>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#0B0B0E' }}>
+        <div className="spinner" />
       </div>
     );
   }
@@ -51,10 +58,11 @@ const AppContent = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" />} />
+        <Route path="/login"    element={!isAuthenticated ? <Login />    : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/dashboard" />} />
+        <Route path="/auth/callback" element={<Navigate to="/dashboard" />} />
         <Route path="/about" element={<About />} />
-        
+
         <Route
           path="/"
           element={
@@ -64,13 +72,13 @@ const AppContent = () => {
           }
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="apps" element={<AppsList />} />
-          <Route path="apps/create" element={<CreateApp />} />
-          <Route path="apps/:id" element={<AppDetail />} />
-          <Route path="apps/:id/builder" element={<AppBuilder />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="admin" element={<Admin />} />
+          <Route path="dashboard"          element={<Dashboard />} />
+          <Route path="apps"               element={<AppsList />} />
+          <Route path="apps/create"        element={<CreateApp />} />
+          <Route path="apps/:id"           element={<AppDetail />} />
+          <Route path="apps/:id/builder"   element={<AppBuilder />} />
+          <Route path="profile"            element={<Profile />} />
+          <Route path="admin"              element={<Admin />} />
           <Route path="settings/providers" element={<ProviderSettings />} />
         </Route>
       </Routes>
@@ -78,13 +86,10 @@ const AppContent = () => {
   );
 };
 
-// Main App Component
-const App: React.FC = () => {
-  return (
-    <Provider store={store}>
-      <AppContent />
-    </Provider>
-  );
-};
+const App: React.FC = () => (
+  <Provider store={store}>
+    <AppContent />
+  </Provider>
+);
 
 export default App;
