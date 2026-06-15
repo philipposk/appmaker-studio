@@ -1,189 +1,122 @@
-import React, { useState, useEffect } from 'react';
-import { useAppDispatch } from '../../utils/hooks';
-import { fetchApp } from '../../store/slices/appSlice';
-import api from '../../services/api';
-import './TestRunner.scss';
+import React, { useMemo, useRef, useState } from 'react';
+import { TOKENS, I } from '../../design';
+import { bootWebContainer, mountAndInstall, runProcess } from '../../lib/webcontainer';
+import { getAppFiles } from '../../lib/appFiles';
 
 interface TestRunnerProps {
   app: any;
 }
 
+/**
+ * Runs the generated app's test suite in the browser WebContainer — no
+ * backend. Replaces the old api.post('/apps/:id/tests/run') that hit a dead
+ * Express server. Detects the package.json `test` script; streams output;
+ * reports pass/fail by exit code with a best-effort summary parse.
+ */
 const TestRunner: React.FC<TestRunnerProps> = ({ app }) => {
-  const dispatch = useAppDispatch();
   const [running, setRunning] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [output, setOutput] = useState<string>('');
+  const [result, setResult] = useState<'pass' | 'fail' | null>(null);
+  const [error, setError] = useState('');
+  const logRef = useRef<HTMLPreElement>(null);
 
-  // Refresh app data after tests run to get updated statuses
-  useEffect(() => {
-    if (!running && results) {
-      dispatch(fetchApp(app._id));
-    }
-  }, [results, running, dispatch, app._id]);
+  const files = useMemo(() => getAppFiles(app).map((f) => ({ path: f.path, content: f.content })), [app]);
+  const pkg = useMemo(() => {
+    try { return JSON.parse(files.find((f) => f.path === 'package.json')?.content || '{}'); }
+    catch { return {}; }
+  }, [files]);
+  const hasTestScript = !!pkg?.scripts?.test && !/no test specified/.test(pkg.scripts.test);
+  const testFileCount = files.filter((f) => /\.(test|spec)\./.test(f.path) || /__tests__\//.test(f.path)).length;
 
-  const allTests = [
-    ...(app.tests?.unitTests || []),
-    ...(app.tests?.integrationTests || []),
-  ];
+  const append = (s: string) => {
+    setOutput((prev) => (prev.length > 40000 ? prev.slice(-40000) + s : prev + s));
+    requestAnimationFrame(() => logRef.current?.scrollTo(0, logRef.current.scrollHeight));
+  };
 
-  const handleRunTests = async () => {
-    setRunning(true);
+  const handleRun = async () => {
+    setRunning(true); setOutput(''); setResult(null); setError('');
     try {
-      const response = await api.post(`/apps/${app._id}/tests/run`, { type: 'all' });
-      const data = response.data;
-      
-      if (data.success) {
-        // Map backend results to frontend format
-        const mappedResults = {
-          total: data.results.total,
-          passed: data.results.passed,
-          failed: data.results.failed,
-          skipped: data.results.skipped,
-          tests: data.results.tests.map((test: any) => ({
-            ...test,
-            status: test.status === 'passed' ? 'pass' : test.status === 'failed' ? 'fail' : 'pending',
-            path: test.path,
-            name: test.name || test.fullName,
-            duration: test.duration,
-            error: test.error
-          }))
-        };
-        setResults(mappedResults);
-      } else {
-        console.error('Test execution failed:', data.message);
-        setResults({
-          total: 0,
-          passed: 0,
-          failed: 1,
-          skipped: 0,
-          tests: [{
-            path: 'Test Runner',
-            name: 'Execution Error',
-            status: 'fail',
-            error: data.message || 'Failed to run tests'
-          }]
-        });
-      }
-    } catch (error) {
-      console.error('Test execution error:', error);
-      setResults({
-        total: 0,
-        passed: 0,
-        failed: 1,
-        skipped: 0,
-        tests: [{
-          path: 'Test Runner',
-          name: 'Network Error',
-          status: 'fail',
-          error: 'Failed to connect to test server'
-        }]
-      });
+      const wc = await bootWebContainer();
+      append('› mounting files + installing deps…\n');
+      await mountAndInstall(wc, files, append);
+      append('\n› npm test\n\n');
+      const code = await runProcess(wc, 'npm', ['test', '--', '--run'], append);
+      setResult(code === 0 ? 'pass' : 'fail');
+    } catch (e: any) {
+      setError(e?.message || String(e));
+      setResult('fail');
     } finally {
       setRunning(false);
     }
   };
 
-  const passedCount = allTests.filter((t: any) => t.status === 'pass').length;
-  const failedCount = allTests.filter((t: any) => t.status === 'fail').length;
-  const pendingCount = allTests.filter((t: any) => t.status === 'pending').length;
-
   return (
-    <div className="test-runner">
-      <div className="test-runner-header">
-        <div className="header-content">
-          <h3>Test Runner</h3>
-          <p>Run unit and integration tests for your app</p>
+    <div style={{ padding: 24, maxWidth: 820, margin: '0 auto', fontFamily: TOKENS.sans, color: TOKENS.text1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 600 }}>Tests</h3>
+          <p style={{ margin: 0, color: TOKENS.text3, fontSize: 13.5 }}>
+            {testFileCount > 0 ? `${testFileCount} test file${testFileCount > 1 ? 's' : ''} · ` : ''}
+            runs in your browser (WebContainer)
+          </p>
         </div>
         <button
-          onClick={handleRunTests}
-          className="btn btn--primary"
-          disabled={running || allTests.length === 0}
+          onClick={handleRun}
+          disabled={running || !hasTestScript}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '8px 14px', borderRadius: 8, border: 0,
+            background: hasTestScript ? TOKENS.accent : TOKENS.panel2,
+            color: hasTestScript ? '#0B0B0E' : TOKENS.text4,
+            fontSize: 13, fontWeight: 500, fontFamily: TOKENS.sans,
+            cursor: running || !hasTestScript ? 'not-allowed' : 'pointer',
+            opacity: running ? 0.7 : 1,
+          }}
         >
-          {running ? (
-            <>
-              <div className="spinner spinner--small"></div>
-              Running Tests...
-            </>
-          ) : (
-            '▶ Run All Tests'
-          )}
+          <I.Play size={13} /> {running ? 'Running…' : 'Run tests'}
         </button>
       </div>
 
-      <div className="test-stats">
-        <div className="stat-card stat-card--total">
-          <div className="stat-value">{allTests.length}</div>
-          <div className="stat-label">Total Tests</div>
-        </div>
-        <div className="stat-card stat-card--passed">
-          <div className="stat-value">{passedCount}</div>
-          <div className="stat-label">Passed</div>
-        </div>
-        <div className="stat-card stat-card--failed">
-          <div className="stat-value">{failedCount}</div>
-          <div className="stat-label">Failed</div>
-        </div>
-        <div className="stat-card stat-card--pending">
-          <div className="stat-value">{pendingCount}</div>
-          <div className="stat-label">Pending</div>
-        </div>
-      </div>
-
-      {results && (
-        <div className="test-results">
-          <div className="results-summary">
-            <h4>Test Results</h4>
-            <div className="summary-stats">
-              <span className="stat passed">{results.passed} Passed</span>
-              <span className="stat failed">{results.failed} Failed</span>
-              <span className="stat skipped">{results.skipped} Skipped</span>
-            </div>
-          </div>
-          <div className="test-list">
-            {results.tests.map((test: any, index: number) => (
-              <div key={index} className={`test-item test-item--${test.status}`}>
-                <div className="test-header">
-                  <span className="test-status-icon">
-                    {test.status === 'pass' ? '✅' : test.status === 'fail' ? '❌' : '⏳'}
-                  </span>
-                  <span className="test-name">{test.name || test.path}</span>
-                  {test.duration && (
-                    <span className="test-duration">{test.duration.toFixed(0)}ms</span>
-                  )}
-                </div>
-                {test.error && (
-                  <div className="test-error">
-                    <pre>{test.error}</pre>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+      {!hasTestScript && (
+        <div style={{
+          padding: 16, borderRadius: 12, background: TOKENS.panel,
+          border: `1px dashed ${TOKENS.hairline2}`, color: TOKENS.text3, fontSize: 13.5,
+        }}>
+          No <code style={{ fontFamily: TOKENS.mono, color: TOKENS.text2 }}>test</code> script in this app's
+          package.json yet. Ask the builder to add tests, then run them here.
         </div>
       )}
 
-      {!results && allTests.length > 0 && (
-        <div className="test-list">
-          {allTests.map((test: any, index: number) => (
-            <div key={index} className={`test-item test-item--${test.status || 'pending'}`}>
-              <div className="test-header">
-                <span className="test-status-icon">
-                  {test.status === 'pass' ? '✅' : test.status === 'fail' ? '❌' : '⏳'}
-                </span>
-                <span className="test-name">{test.name || test.path}</span>
-              </div>
-            </div>
-          ))}
+      {result && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+          padding: '10px 14px', borderRadius: 10,
+          background: result === 'pass' ? 'rgba(74,222,128,0.1)' : 'rgba(255,142,114,0.1)',
+          border: `1px solid ${result === 'pass' ? 'rgba(74,222,128,0.25)' : 'rgba(255,142,114,0.25)'}`,
+          color: result === 'pass' ? TOKENS.green : '#FF8E72', fontSize: 13.5, fontWeight: 500,
+        }}>
+          {result === 'pass' ? <I.Check size={15} /> : <span>✕</span>}
+          {result === 'pass' ? 'All tests passed' : 'Tests failed'}
         </div>
       )}
 
-      {allTests.length === 0 && (
-        <div className="test-empty">
-          <p>No tests generated yet. Generate your app to create tests automatically.</p>
-        </div>
+      {error && <div style={{ color: '#FF8E72', fontSize: 13, marginBottom: 10 }}>{error}</div>}
+
+      {(output || running) && (
+        <pre
+          ref={logRef}
+          style={{
+            fontFamily: TOKENS.mono, fontSize: 11.5, lineHeight: 1.5,
+            color: TOKENS.text2, background: TOKENS.bg,
+            border: `1px solid ${TOKENS.hairline}`, borderRadius: 10,
+            padding: 14, maxHeight: 420, overflow: 'auto', margin: 0, whiteSpace: 'pre-wrap',
+          }}
+        >
+          {output || 'booting…'}
+        </pre>
       )}
     </div>
   );
 };
 
 export default TestRunner;
-

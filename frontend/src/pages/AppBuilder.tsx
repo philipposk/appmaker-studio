@@ -10,6 +10,8 @@ import TestRunner from '../components/builder/TestRunner';
 import DeploymentPanel from '../components/builder/DeploymentPanel';
 import LivePreview from '../components/builder/LivePreview';
 import { TOKENS, I, Sidebar, Pill, IconProps } from '../design';
+import { downloadAppZip } from '../lib/downloadZip';
+import { countAppFiles } from '../lib/appFiles';
 
 type Tab = 'preview' | 'code' | 'tests' | 'workflow' | 'visual' | 'deploy';
 
@@ -56,10 +58,8 @@ const AppBuilder: React.FC = () => {
     );
   }
 
-  const hasCode = !!currentApp.generatedCode;
-  const filesCount =
-    (currentApp.generatedCode?.frontend?.structure?.length || 0) +
-    (currentApp.generatedCode?.backend?.structure?.length || 0);
+  const filesCount = countAppFiles(currentApp);
+  const hasCode = filesCount > 0;
   const iterations = currentApp.generation?.iterations?.length || 0;
 
   return (
@@ -80,8 +80,10 @@ const AppBuilder: React.FC = () => {
           name={currentApp.name}
           status={currentApp.status}
           iterations={iterations}
+          canDownload={hasCode}
           onBack={() => navigate('/apps')}
           onDeploy={() => setTab('deploy')}
+          onDownload={() => downloadAppZip(currentApp)}
         />
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Left: AI chat (uses the streaming AIPrompt) */}
@@ -210,9 +212,11 @@ const WorkspaceHeader: React.FC<{
   name: string;
   status: string;
   iterations: number;
+  canDownload: boolean;
   onBack: () => void;
   onDeploy: () => void;
-}> = ({ name, status, iterations, onBack, onDeploy }) => (
+  onDownload: () => void;
+}> = ({ name, status, iterations, canDownload, onBack, onDeploy, onDownload }) => (
   <header
     style={{
       display: 'flex',
@@ -254,14 +258,17 @@ const WorkspaceHeader: React.FC<{
 
     <div style={{ display: 'flex', gap: 6 }}>
       <button
+        onClick={onDownload}
+        disabled={!canDownload}
+        title={canDownload ? 'Download the generated app as a .zip' : 'Generate the app first'}
         style={{
           padding: '7px 12px',
           borderRadius: 7,
           border: `1px solid ${TOKENS.hairline2}`,
           background: TOKENS.panel,
-          color: TOKENS.text1,
+          color: canDownload ? TOKENS.text1 : TOKENS.text4,
           fontSize: 12.5,
-          cursor: 'pointer',
+          cursor: canDownload ? 'pointer' : 'not-allowed',
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,

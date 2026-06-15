@@ -1,115 +1,57 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSelector } from '../../utils/hooks';
+import { bootWebContainer, mountAndInstall, WCFile } from '../../lib/webcontainer';
+import { getAppFiles } from '../../lib/appFiles';
 import './LivePreview.scss';
-
-// WebContainer is loaded lazily so the rest of the app still works
-// if the user hasn't run `npm install @webcontainer/api`.
-type WebContainer = any;
-
-interface AppFile {
-  path: string;
-  content: string;
-}
 
 interface LivePreviewProps {
   app: any;
 }
 
 /**
- * Convert a flat file list like [{ path: 'src/App.jsx', content }, ...]
- * into the nested FileSystemTree object WebContainer expects:
- *   { src: { directory: { 'App.jsx': { file: { contents } } } } }
+ * Add a minimal Vite scaffold around generated files so a bare component set
+ * still previews. Seeds from getAppFiles so it works regardless of stored shape.
  */
-function filesToTree(files: AppFile[]): any {
-  const root: any = {};
-  for (const f of files) {
-    if (!f?.path) continue;
-    const parts = f.path.replace(/^\.?\/+/, '').split('/').filter(Boolean);
-    let cursor = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLeaf = i === parts.length - 1;
-      if (isLeaf) {
-        cursor[part] = { file: { contents: f.content ?? '' } };
-      } else {
-        if (!cursor[part]) cursor[part] = { directory: {} };
-        cursor = cursor[part].directory;
-      }
-    }
-  }
-  return root;
-}
+function collectFiles(app: any): WCFile[] {
+  const out: WCFile[] = getAppFiles(app).map((f) => ({ path: f.path, content: f.content }));
+  const has = (p: string) => out.some((f) => f.path === p);
 
-/**
- * Best-effort: read both frontend and backend structures from the app.
- */
-function collectFiles(app: any): AppFile[] {
-  const out: AppFile[] = [];
-  const push = (arr: any[]) =>
-    (arr || []).forEach((f: any) => {
-      if (f?.path && typeof f.content === 'string') out.push({ path: f.path, content: f.content });
-    });
-  push(app?.generatedCode?.frontend?.structure);
-  push(app?.generatedCode?.backend?.structure);
-  push(app?.generatedCode?.tests?.unitTests);
-  push(app?.generatedCode?.tests?.integrationTests);
-  // If a default package.json wasn't generated, fall back to a minimal Vite setup
-  // so `npm install && npm run dev` works for previewing single-file demos.
-  if (!out.some((f) => f.path === 'package.json')) {
+  if (!has('package.json')) {
     out.push({
       path: 'package.json',
       content: JSON.stringify(
         {
-          name: 'appmaker-preview',
-          private: true,
-          type: 'module',
+          name: 'appmaker-preview', private: true, type: 'module',
           scripts: { dev: 'vite --host 0.0.0.0 --port 3000' },
           dependencies: { react: '^18.2.0', 'react-dom': '^18.2.0' },
           devDependencies: { vite: '^5.4.8', '@vitejs/plugin-react': '^4.3.1' },
-        },
-        null,
-        2,
-      ),
+        }, null, 2),
     });
   }
-  if (!out.some((f) => f.path === 'vite.config.js' || f.path === 'vite.config.ts')) {
+  if (!has('vite.config.js') && !has('vite.config.ts')) {
     out.push({
       path: 'vite.config.js',
-      content:
-        "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: { host: '0.0.0.0', port: 3000 } });\n",
+      content: "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: { host: '0.0.0.0', port: 3000 } });\n",
     });
   }
-  if (!out.some((f) => f.path === 'index.html')) {
+  if (!has('index.html')) {
     out.push({
       path: 'index.html',
-      content:
-        '<!doctype html><html><head><meta charset="utf-8"><title>Preview</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>',
+      content: '<!doctype html><html><head><meta charset="utf-8"><title>Preview</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>',
     });
   }
-  if (!out.some((f) => f.path === 'src/main.jsx' || f.path === 'src/main.tsx')) {
+  if (!has('src/main.jsx') && !has('src/main.tsx')) {
     out.push({
       path: 'src/main.jsx',
-      content:
-        "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App.jsx';\ncreateRoot(document.getElementById('root')).render(<App />);\n",
+      content: "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App.jsx';\ncreateRoot(document.getElementById('root')).render(<App />);\n",
     });
   }
   return out;
 }
 
-// Singleton boot — WebContainer cannot be booted twice per page.
-let bootPromise: Promise<WebContainer> | null = null;
-async function bootWebContainer(): Promise<WebContainer> {
-  if (bootPromise) return bootPromise;
-  bootPromise = (async () => {
-    const mod = await import('@webcontainer/api').catch((e) => {
-      throw new Error(
-        '@webcontainer/api is not installed. Run `npm install @webcontainer/api xterm xterm-addon-fit` in the frontend dir.\n' +
-          String(e),
-      );
-    });
-    return mod.WebContainer.boot();
-  })();
-  return bootPromise;
+/** Stable signature of the file set so we only rebuild when content changes. */
+function filesSignature(files: WCFile[]): string {
+  return files.map((f) => `${f.path}:${f.content.length}`).sort().join('|');
 }
 
 const LivePreview: React.FC<LivePreviewProps> = ({ app }) => {
@@ -118,69 +60,78 @@ const LivePreview: React.FC<LivePreviewProps> = ({ app }) => {
   const [status, setStatus] = useState<string>('idle');
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string>('');
-  const wcRef = useRef<WebContainer | null>(null);
   const runningRef = useRef(false);
+  const devProcRef = useRef<any>(null);
+  const lastSigRef = useRef<string>('');
 
   const files = useMemo(() => collectFiles(app), [app]);
-  const hasFiles = files.some((f) => f.path !== 'package.json' && f.path !== 'vite.config.js' && f.content.trim());
+  const hasFiles = files.some(
+    (f) => f.path !== 'package.json' && f.path !== 'vite.config.js' && f.content.trim(),
+  );
+  const signature = useMemo(() => filesSignature(files), [files]);
 
-  const appendLog = (s: string) => setLogs((prev) => (prev.length > 500 ? [...prev.slice(-500), s] : [...prev, s]));
+  const appendLog = (s: string) =>
+    setLogs((prev) => (prev.length > 500 ? [...prev.slice(-500), s] : [...prev, s]));
 
   useEffect(() => {
     if (!hasFiles) return;
+    // Skip rebuild if the file set is byte-identical to the last run (audit #8 —
+    // avoids a full reboot+reinstall when an unrelated store update re-creates
+    // the app object reference).
+    if (signature === lastSigRef.current && previewUrl) return;
     if (runningRef.current) return;
     runningRef.current = true;
+    lastSigRef.current = signature;
+
+    let serverReadyUnsub: (() => void) | undefined;
+    let cancelled = false;
+
     setError('');
     setLogs([]);
-    setPreviewUrl('');
     setStatus('booting');
 
     (async () => {
       try {
         const wc = await bootWebContainer();
-        wcRef.current = wc;
 
-        setStatus('mounting files');
-        const tree = filesToTree(files);
-        await wc.mount(tree);
+        // Tear down a previous dev server before starting a new one (no leak).
+        if (devProcRef.current) {
+          try { devProcRef.current.kill(); } catch { /* noop */ }
+          devProcRef.current = null;
+        }
 
-        setStatus('npm install');
-        const install = await wc.spawn('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error']);
-        install.output.pipeTo(
-          new WritableStream({
-            write(chunk) {
-              appendLog(chunk);
-            },
-          }),
-        );
-        const installCode = await install.exit;
-        if (installCode !== 0) throw new Error(`npm install failed (exit ${installCode}). See terminal output.`);
+        setStatus('mounting + installing');
+        const { installed } = await mountAndInstall(wc, files, appendLog);
+        if (cancelled) return;
+        appendLog(installed ? '\n[deps installed]\n' : '\n[deps cached — skipped install]\n');
 
-        setStatus('npm run dev');
+        setStatus('starting dev server');
         const dev = await wc.spawn('npm', ['run', 'dev']);
-        dev.output.pipeTo(
-          new WritableStream({
-            write(chunk) {
-              appendLog(chunk);
-            },
-          }),
-        );
+        devProcRef.current = dev;
+        dev.output.pipeTo(new WritableStream({ write: (c: string) => appendLog(c) }));
 
-        // server-ready fires when a port starts listening inside the container.
-        wc.on('server-ready', (port: number, url: string) => {
+        serverReadyUnsub = wc.on('server-ready', (port: number, url: string) => {
+          if (cancelled) return;
           setPreviewUrl(url);
           setStatus(`ready on :${port}`);
         });
       } catch (err: any) {
-        setError(err?.message || String(err));
-        setStatus('error');
+        if (!cancelled) {
+          setError(err?.message || String(err));
+          setStatus('error');
+        }
       } finally {
         runningRef.current = false;
       }
     })();
-  }, [files, hasFiles]);
 
-  if (!app?.generatedCode) {
+    return () => {
+      cancelled = true;
+      if (serverReadyUnsub) { try { serverReadyUnsub(); } catch { /* noop */ } }
+    };
+  }, [signature, hasFiles]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!hasFiles) {
     return (
       <div className="live-preview">
         <div className="preview-empty">
@@ -194,7 +145,7 @@ const LivePreview: React.FC<LivePreviewProps> = ({ app }) => {
       <div className="live-preview">
         <div className="preview-empty">
           <div className="spinner"></div>
-          <p>Generating your app... files will boot in the WebContainer as soon as they're ready.</p>
+          <p>Generating your app… files will boot in the WebContainer as soon as they're ready.</p>
         </div>
       </div>
     );
@@ -222,7 +173,6 @@ const LivePreview: React.FC<LivePreviewProps> = ({ app }) => {
             src={previewUrl}
             className="preview-iframe"
             title="Live Preview"
-            // WebContainer requires same-origin iframe permissions for HMR + module workers.
             sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
           />
         ) : (
