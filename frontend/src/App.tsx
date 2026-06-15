@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from './utils/hooks';
 import { setSession, markLoaded } from './store/slices/authSlice';
 import { setTheme } from './store/slices/themeSlice';
 import { supabase } from './lib/supabase';
+import { touchAppAccess } from './lib/appAccess';
 import './styles/index.scss';
 
 // Components
@@ -27,8 +28,14 @@ const AppBuilder = lazy(() => import('./pages/AppBuilder'));
 
 const AppContent = () => {
   const dispatch = useAppDispatch();
-  const { isAuthenticated, loading } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, loading, user } = useAppSelector((state) => state.auth);
   const { theme } = useAppSelector((state) => state.theme);
+
+  // Record AppMaker usage in the shared platform table so the 6x7 hub's
+  // "your apps" dashboard can list it. Once per authenticated user id.
+  useEffect(() => {
+    if (isAuthenticated && user?.id) touchAppAccess(user.id);
+  }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
     // Theme init
