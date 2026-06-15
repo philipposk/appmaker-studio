@@ -96,10 +96,12 @@ function rowToApp(row: any): App {
 // ── Thunks ─────────────────────────────────────────────────────
 
 export const fetchApps = createAsyncThunk('apps/fetchApps', async (_, { rejectWithValue }) => {
+  // List/card view only needs these — skip the large generation/generated_code
+  // jsonb blobs (audit #11). statistics(views) + deployment(url) are shown.
   const { data, error } = await supabase
     .schema('appmaker')
     .from('apps')
-    .select('id,name,description,type,status,user_id,metadata,statistics,generation,deployment,created_at,updated_at')
+    .select('id,name,description,type,status,user_id,statistics,deployment,created_at,updated_at')
     .order('updated_at', { ascending: false });
   if (error) return rejectWithValue(error.message);
   return (data ?? []).map(rowToApp);

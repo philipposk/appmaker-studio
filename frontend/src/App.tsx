@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './store/store';
@@ -15,13 +15,15 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import AppsList from './pages/AppsList';
 import AppDetail from './pages/AppDetail';
-import AppBuilder from './pages/AppBuilder';
 import CreateApp from './pages/CreateApp';
 import Profile from './pages/Profile';
 import About from './pages/About';
 import Admin from './pages/Admin';
 import ProviderSettings from './pages/ProviderSettings';
 import PrivateRoute from './components/common/PrivateRoute';
+
+// The builder pulls the heavy editor stack — load it only when its route opens.
+const AppBuilder = lazy(() => import('./pages/AppBuilder'));
 
 const AppContent = () => {
   const dispatch = useAppDispatch();
@@ -63,6 +65,11 @@ const AppContent = () => {
 
   return (
     <Router>
+      <Suspense fallback={
+        <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: '#0B0B0E' }}>
+          <div className="spinner" />
+        </div>
+      }>
       <Routes>
         <Route path="/login"    element={!isAuthenticated ? <Login />    : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/dashboard" />} />
@@ -88,6 +95,7 @@ const AppContent = () => {
           <Route path="settings/providers" element={<ProviderSettings />} />
         </Route>
       </Routes>
+      </Suspense>
     </Router>
   );
 };

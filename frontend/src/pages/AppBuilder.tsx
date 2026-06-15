@@ -1,17 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../utils/hooks';
 import { fetchApp } from '../store/slices/appSlice';
-import VisualEditor from '../components/builder/VisualEditor';
-import WorkflowEditor from '../components/builder/WorkflowEditor';
-import CodeEditor from '../components/builder/CodeEditor';
 import AIPrompt from '../components/builder/AIPrompt';
-import TestRunner from '../components/builder/TestRunner';
-import DeploymentPanel from '../components/builder/DeploymentPanel';
 import LivePreview from '../components/builder/LivePreview';
 import { TOKENS, I, Sidebar, Pill, IconProps } from '../design';
 import { downloadAppZip } from '../lib/downloadZip';
 import { countAppFiles } from '../lib/appFiles';
+
+// Heavy editors (monaco / grapesjs / reactflow) are split out of the main
+// bundle and loaded only when their tab is opened (audit #7).
+const CodeEditor      = lazy(() => import('../components/builder/CodeEditor'));
+const VisualEditor    = lazy(() => import('../components/builder/VisualEditor'));
+const WorkflowEditor  = lazy(() => import('../components/builder/WorkflowEditor'));
+const TestRunner      = lazy(() => import('../components/builder/TestRunner'));
+const DeploymentPanel = lazy(() => import('../components/builder/DeploymentPanel'));
 
 type Tab = 'preview' | 'code' | 'tests' | 'workflow' | 'visual' | 'deploy';
 
@@ -195,11 +198,15 @@ const AppBuilder: React.FC = () => {
                   </div>
                 </div>
               )}
-              {tab === 'code' && hasCode && <CodeEditor app={currentApp} />}
-              {tab === 'tests' && hasCode && <TestRunner app={currentApp} />}
-              {tab === 'workflow' && hasCode && <WorkflowEditor app={currentApp} />}
-              {tab === 'visual' && hasCode && <VisualEditor app={currentApp} />}
-              {tab === 'deploy' && <DeploymentPanel app={currentApp} />}
+              {tab !== 'preview' && (
+                <Suspense fallback={<TabLoading />}>
+                  {tab === 'code' && hasCode && <CodeEditor app={currentApp} />}
+                  {tab === 'tests' && hasCode && <TestRunner app={currentApp} />}
+                  {tab === 'workflow' && hasCode && <WorkflowEditor app={currentApp} />}
+                  {tab === 'visual' && hasCode && <VisualEditor app={currentApp} />}
+                  {tab === 'deploy' && <DeploymentPanel app={currentApp} />}
+                </Suspense>
+              )}
             </div>
           </div>
         </div>
@@ -299,6 +306,21 @@ const WorkspaceHeader: React.FC<{
       </button>
     </div>
   </header>
+);
+
+const TabLoading: React.FC = () => (
+  <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: TOKENS.text3, fontSize: 13 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span
+        style={{
+          width: 14, height: 14, border: `2px solid ${TOKENS.hairline2}`,
+          borderTopColor: TOKENS.accent, borderRadius: 99,
+          display: 'inline-block', animation: 'spin 0.7s linear infinite',
+        }}
+      />
+      Loading…
+    </div>
+  </div>
 );
 
 const ViewToggle: React.FC<{ Ico: React.FC<IconProps>; active: boolean; onClick: () => void }> = ({ Ico, active, onClick }) => (
