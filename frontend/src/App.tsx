@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Provider } from 'react-redux';
 import { store } from './store/store';
 import { useAppDispatch, useAppSelector } from './utils/hooks';
-import { getMe, setSession } from './store/slices/authSlice';
+import { setSession, markLoaded } from './store/slices/authSlice';
 import { setTheme } from './store/slices/themeSlice';
 import { supabase } from './lib/supabase';
 import './styles/index.scss';
@@ -34,16 +34,22 @@ const AppContent = () => {
     dispatch(setTheme(savedTheme));
     document.documentElement.setAttribute('data-theme', savedTheme);
 
-    // Restore existing Supabase session on boot (checks cookies).
-    dispatch(getMe());
-
-    // Keep Redux in sync whenever Supabase refreshes the token or the user
-    // signs in / out in another tab.
+    // Single source of truth for auth state: Supabase fires INITIAL_SESSION on
+    // listener registration (restores the cookie session) and again on every
+    // sign-in / sign-out / token refresh — in this and other tabs. setSession
+    // also clears the loading gate. No separate getMe() (it raced this one).
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       dispatch(setSession({ session }));
     });
 
-    return () => subscription.unsubscribe();
+    // Safety net: if the initial event somehow never arrives (storage lock,
+    // BroadcastChannel stall), don't trap the user on the spinner forever.
+    const safety = setTimeout(() => dispatch(markLoaded()), 8000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safety);
+    };
   }, [dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Block render until we've finished the initial session check.

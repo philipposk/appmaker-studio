@@ -10,6 +10,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { buildGeneratedCode } from '../lib/appFiles';
 
 export type StreamEvent =
   | { type: 'token'; delta: string }
@@ -161,10 +162,9 @@ export async function saveStreamResult(body: SaveStreamBody): Promise<{ app: { _
     description:  body.description || body.prompt?.slice(0, 200),
     type:         body.appType || 'web',
     status:       'draft',
-    generated_code: {
-      files: body.files,
-      shellCommands: body.shellCommands,
-    },
+    // Canonical nested shape (frontend/backend/tests.structure) that every
+    // reader expects, with the flat `files` array preserved. See lib/appFiles.
+    generated_code: buildGeneratedCode(body.files, body.shellCommands),
     generation: {
       prompt: body.prompt,
       defaultProvider: body.provider,

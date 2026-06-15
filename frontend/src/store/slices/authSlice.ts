@@ -78,6 +78,13 @@ export const login = createAsyncThunk(
   },
 );
 
+/** Sign out: clears the local session (cookie storage) then revokes server-side.
+ *  auth-js removes the local session even if the network revoke fails, so this
+ *  reliably logs the user out. The SIGNED_OUT listener also fires setSession(null). */
+export const logout = createAsyncThunk('auth/logout', async () => {
+  await supabase.auth.signOut();
+});
+
 export const register = createAsyncThunk(
   'auth/register',
   async (
@@ -111,14 +118,12 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    logout: (state) => {
-      state.user = null;
-      state.token = null;
-      state.isAuthenticated = false;
-      supabase.auth.signOut();   // clears cookie storage
-    },
     clearError: (state) => {
       state.error = null;
+    },
+    /** Force-clear the loading gate (boot safety timeout in App.tsx). */
+    markLoaded: (state) => {
+      state.loading = false;
     },
     /** Called by the onAuthStateChange listener in App.tsx to keep Redux in sync. */
     setSession: (state, action) => {
@@ -172,9 +177,16 @@ const authSlice = createSlice({
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
         state.error   = action.payload as string;
+      })
+      // logout — clear state on settle (auth-js clears the local cookie either way)
+      .addCase(logout.fulfilled, (state) => {
+        state.user = null; state.token = null; state.isAuthenticated = false;
+      })
+      .addCase(logout.rejected, (state) => {
+        state.user = null; state.token = null; state.isAuthenticated = false;
       });
   },
 });
 
-export const { logout, clearError, setSession } = authSlice.actions;
+export const { clearError, setSession, markLoaded } = authSlice.actions;
 export default authSlice.reducer;

@@ -1,38 +1,38 @@
 import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
+/**
+ * Legacy axios client. Auth moved to Supabase (cookie session), so this
+ * attaches the Supabase access token instead of the old localStorage 'token'.
+ *
+ * NOTE: the Express backend this pointed at is gone. Remaining callers
+ * (legacy generate/refine/download, Deploy, Test) are being migrated to
+ * Supabase / WebContainer. This client no longer hard-redirects on 401 —
+ * the old behaviour bounced users out of the app to a backend that no
+ * longer exists. Callers must handle their own errors.
+ */
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor to add auth token
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+    } catch {
+      /* unauthenticated — leave the header off */
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
-// Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
 export default api;
-
