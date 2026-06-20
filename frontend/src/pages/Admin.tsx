@@ -1,68 +1,45 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../utils/hooks';
 import { fetchApps } from '../store/slices/appSlice';
 import './Admin.scss';
 
+/**
+ * Admin panel. Cross-user metrics (total users, users-by-plan) require a
+ * server with the service-role key — not available in the static platform
+ * deployment, and a client-side role gate is not a real security boundary.
+ * So we show only what's safely derivable from the signed-in admin's own data
+ * (their apps, via RLS) and a clear note for the rest. The old /api/admin/*
+ * Express calls were removed (dead backend + Bearer of a non-existent token).
+ */
 const Admin: React.FC = () => {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  const { apps } = useAppSelector((state) => state.apps);
+  const { apps, loading } = useAppSelector((state) => state.apps);
   const [activeTab, setActiveTab] = useState<'users' | 'apps' | 'stats'>('stats');
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<any>(null);
+  const users: any[] = [];
 
   useEffect(() => {
-    if (user?.role !== 'admin') {
-      return;
-    }
+    if (user?.role !== 'admin') return;
     dispatch(fetchApps());
-    loadStats();
   }, [dispatch, user]);
 
-  const loadStats = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/admin/stats', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const data = await response.json();
-      if (data.success) {
-        setStats(data.stats);
-      }
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/admin/users', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const data = await response.json();
-      if (data.success) {
-        setUsers(data.users);
-      }
-    } catch (error) {
-      console.error('Failed to load users:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'users') {
-      loadUsers();
-    }
-  }, [activeTab]);
+  // Stats derived from the apps this admin can see (RLS-scoped). User-level
+  // aggregates that need the service role are shown as "—".
+  const stats = useMemo(() => {
+    const list = apps || [];
+    const byStatus = list.reduce((acc: Record<string, number>, a: any) => {
+      acc[a.status] = (acc[a.status] || 0) + 1;
+      return acc;
+    }, {});
+    return {
+      totalUsers: '—',
+      totalApps: list.length,
+      activeUsers: '—',
+      deployedApps: list.filter((a: any) => a.deployment?.url || a.deployment?.status === 'deployed').length,
+      usersByPlan: [],
+      appsByStatus: Object.entries(byStatus).map(([_id, count]) => ({ _id, count })),
+    };
+  }, [apps]);
 
   if (user?.role !== 'admin') {
     return (
@@ -109,6 +86,10 @@ const Admin: React.FC = () => {
               <div className="spinner"></div>
             ) : stats ? (
               <>
+                <div className="alert alert--warning">
+                  Showing apps visible to your account. Platform-wide user counts need a
+                  server with the service-role key (shown as “—”).
+                </div>
                 <div className="stats-grid">
                   <div className="stat-card">
                     <h3>{stats.totalUsers}</h3>
@@ -154,36 +135,16 @@ const Admin: React.FC = () => {
 
         {activeTab === 'users' && (
           <div className="admin-users">
-            {loading ? (
-              <div className="spinner"></div>
-            ) : (
+            <div className="alert alert--warning">
+              User management isn't available in the platform deployment. Listing all
+              users requires a server with the Supabase service-role key — use the
+              Supabase dashboard (Authentication → Users) for now.
+            </div>
+            {users.length > 0 && (
               <table className="users-table">
-                <thead>
-                  <tr>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Plan</th>
-                    <th>Apps</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
                 <tbody>
                   {users.map((u: any) => (
-                    <tr key={u.id || u._id}>
-                      <td>{u.username}</td>
-                      <td>{u.email}</td>
-                      <td>
-                        <span className={`badge badge--${u.role}`}>{u.role}</span>
-                      </td>
-                      <td>{u.subscription?.plan || 'free'}</td>
-                      <td>{u.apps?.length || 0}</td>
-                      <td>
-                        <span className={`badge badge--${u.isActive ? 'active' : 'inactive'}`}>
-                          {u.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                    </tr>
+                    <tr key={u.id || u._id}><td>{u.email}</td></tr>
                   ))}
                 </tbody>
               </table>

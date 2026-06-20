@@ -29,7 +29,6 @@ const AppBuilder = lazy(() => import('./pages/AppBuilder'));
 const AppContent = () => {
   const dispatch = useAppDispatch();
   const { isAuthenticated, loading, user } = useAppSelector((state) => state.auth);
-  const { theme } = useAppSelector((state) => state.theme);
 
   // Record AppMaker usage in the shared platform table so the 6x7 hub's
   // "your apps" dashboard can list it. Once per authenticated user id.
@@ -38,10 +37,10 @@ const AppContent = () => {
   }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
-    // Theme init
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' || theme;
-    dispatch(setTheme(savedTheme));
-    document.documentElement.setAttribute('data-theme', savedTheme);
+    // The new shell is dark-only; the light-theme path renders white cards on
+    // the black canvas, so force dark app-wide (audit: palette/theme break).
+    dispatch(setTheme('dark'));
+    document.documentElement.setAttribute('data-theme', 'dark');
 
     // Single source of truth for auth state: Supabase fires INITIAL_SESSION on
     // listener registration (restores the cookie session) and again on every

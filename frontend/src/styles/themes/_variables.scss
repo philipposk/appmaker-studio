@@ -12,19 +12,21 @@ $light-success: #28a745;
 $light-error: #dc3545;
 $light-warning: #ffc107;
 
-// Dark Theme Colors
-$dark-bg-primary: #1a1a1a;
-$dark-bg-secondary: #2d2d2d;
-$dark-bg-tertiary: #3d3d3d;
-$dark-text-primary: #ffffff;
-$dark-text-secondary: #b3b3b3;
-$dark-text-tertiary: #808080;
-$dark-border: #404040;
-$dark-accent: #4dabf7;
-$dark-accent-hover: #339af0;
-$dark-success: #51cf66;
-$dark-error: #ff6b6b;
-$dark-warning: #ffd43b;
+// Dark Theme Colors — aligned to the design-token palette (design/tokens.ts)
+// so legacy SCSS pages match the new shell (#0B0B0E / coral) instead of the
+// old #1a1a1a / blue. The app is dark-only; light theme is forced off.
+$dark-bg-primary: #0B0B0E;   // TOKENS.bg
+$dark-bg-secondary: #121217; // TOKENS.panel
+$dark-bg-tertiary: #171720;  // TOKENS.panel2
+$dark-text-primary: #F2F2F5; // TOKENS.text1
+$dark-text-secondary: #A6A6B0; // TOKENS.text2
+$dark-text-tertiary: #666673;  // TOKENS.text3
+$dark-border: #22222C;       // TOKENS.hairline
+$dark-accent: #FF6A3D;       // TOKENS.accent
+$dark-accent-hover: #FF7C52;
+$dark-success: #4ADE80;
+$dark-error: #FF8E72;
+$dark-warning: #F5B647;
 
 // CSS Variables for Theming
 :root[data-theme="light"] {
@@ -37,6 +39,7 @@ $dark-warning: #ffd43b;
   --border: #{$light-border};
   --accent: #{$light-accent};
   --accent-hover: #{$light-accent-hover};
+  --accent-rgb: 0, 123, 255;
   --success: #{$light-success};
   --error: #{$light-error};
   --warning: #{$light-warning};
@@ -52,6 +55,7 @@ $dark-warning: #ffd43b;
   --border: #{$dark-border};
   --accent: #{$dark-accent};
   --accent-hover: #{$dark-accent-hover};
+  --accent-rgb: 255, 106, 61;
   --success: #{$dark-success};
   --error: #{$dark-error};
   --warning: #{$dark-warning};

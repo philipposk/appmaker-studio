@@ -8,7 +8,7 @@ const AppDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const { currentApp, loading } = useAppSelector((state) => state.apps);
+  const { currentApp, loading, error } = useAppSelector((state) => state.apps);
   const [testingGroq, setTestingGroq] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
@@ -36,10 +36,24 @@ const AppDetail: React.FC = () => {
     }
   };
 
-  if (loading || !currentApp) {
+  if (loading) {
     return (
       <div className="app-detail-page">
         <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (!currentApp) {
+    // Load finished but no app — not found, RLS-denied, or fetch failed.
+    return (
+      <div className="app-detail-page" style={{ padding: 24, maxWidth: 560 }}>
+        <div className="alert alert--error">
+          {error || "This app couldn't be loaded. It may not exist or you may not have access."}
+        </div>
+        <button className="btn btn--secondary" onClick={() => navigate('/apps')} style={{ marginTop: 12 }}>
+          ← Back to Projects
+        </button>
       </div>
     );
   }
