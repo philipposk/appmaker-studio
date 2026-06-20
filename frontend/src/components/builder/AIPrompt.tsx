@@ -32,7 +32,10 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
   const [targetComponent, setTargetComponent] = useState('');
 
   // Streaming mode state
-  const [streamMode, setStreamMode] = useState<boolean>(true);
+  // Streaming via the Edge Function is the only working path; the legacy
+  // non-stream backend was removed. Kept as a const so the legacy branches
+  // below compile but are never reached (no user-facing dead toggle).
+  const streamMode = true;
   const [provider, setProvider] = useState<string>(getActiveProvider().provider);
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [allProviders, setAllProviders] = useState<string[]>([]);
@@ -234,10 +237,6 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
               {isExistingApp ? 'Refine' : 'Generate'}
             </span>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-            <span style={{ fontSize: 11.5, color: TOKENS.text3 }}>Stream</span>
-            <ToggleSwitch checked={streamMode} onChange={setStreamMode} disabled={busy} />
-          </label>
         </div>
 
         {streamMode && (
@@ -662,42 +661,6 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
 };
 
 /* ── tiny local helpers ────────────────────────────────────── */
-
-const ToggleSwitch: React.FC<{ checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }> = ({
-  checked,
-  onChange,
-  disabled,
-}) => (
-  <button
-    type="button"
-    onClick={() => !disabled && onChange(!checked)}
-    style={{
-      width: 32,
-      height: 18,
-      borderRadius: 99,
-      border: 0,
-      background: checked ? TOKENS.accent : TOKENS.panel2,
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      position: 'relative',
-      padding: 0,
-      opacity: disabled ? 0.5 : 1,
-      transition: 'background 0.15s',
-    }}
-  >
-    <span
-      style={{
-        position: 'absolute',
-        top: 3,
-        left: checked ? 16 : 3,
-        width: 12,
-        height: 12,
-        borderRadius: 99,
-        background: '#fff',
-        transition: 'left 0.15s',
-      }}
-    />
-  </button>
-);
 
 const SelectField: React.FC<{
   label: string;

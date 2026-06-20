@@ -10,7 +10,7 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { buildGeneratedCode } from '../lib/appFiles';
+import { buildGeneratedCode, getAppFiles } from '../lib/appFiles';
 
 export type StreamEvent =
   | { type: 'token'; delta: string }
@@ -156,32 +156,39 @@ export async function saveStreamResult(body: SaveStreamBody): Promise<{ app: { _
   const userId = sessionData.session?.user.id;
   if (!userId) throw new Error('Not authenticated');
 
-  const appPayload = {
-    user_id:      userId,
-    name:         body.artifactName || body.prompt?.slice(0, 60) || 'New App',
-    description:  body.description || body.prompt?.slice(0, 200),
-    type:         body.appType || 'web',
-    status:       'draft',
-    // Canonical nested shape (frontend/backend/tests.structure) that every
-    // reader expects, with the flat `files` array preserved. See lib/appFiles.
-    generated_code: buildGeneratedCode(body.files, body.shellCommands),
-    generation: {
-      prompt: body.prompt,
-      defaultProvider: body.provider,
-    },
-  };
+  // On refine (existing appId) the model streams back only the files it
+  // changed. Merge them OVER the app's existing files so untouched files are
+  // not deleted (audit: refine data loss). New/changed paths win.
+  let filesToSave = body.files;
+  if (body.appId) {
+    const { data: existing } = await supabase
+      .schema('appmaker').from('apps')
+      .select('generated_code').eq('id', body.appId).single();
+    const merged = new Map(
+      getAppFiles({ generated_code: existing?.generated_code }).map((f) => [f.path, f]),
+    );
+    for (const f of body.files) merged.set(f.path, f);
+    filesToSave = Array.from(merged.values());
+  }
+
+  // Canonical nested shape (frontend/backend/tests.structure) every reader
+  // expects, with the flat `files` array preserved. See lib/appFiles.
+  const generatedCode = buildGeneratedCode(filesToSave, body.shellCommands);
 
   if (body.appId) {
-    // Update existing
+    // Refine: patch only code + generation. Never reset name/status/type/desc.
     const { error } = await supabase
       .schema('appmaker')
       .from('apps')
-      .update({ ...appPayload, updated_at: new Date().toISOString() })
+      .update({
+        generated_code: generatedCode,
+        generation: { prompt: body.prompt, defaultProvider: body.provider },
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', body.appId)
       .eq('user_id', userId);
     if (error) throw new Error(error.message);
 
-    // Insert iteration
     await supabase.schema('appmaker').from('iterations').insert({
       app_id:        body.appId,
       user_id:       userId,
@@ -189,7 +196,7 @@ export async function saveStreamResult(body: SaveStreamBody): Promise<{ app: { _
       provider:      body.provider,
       model:         body.model,
       stream_log:    body.streamLog,
-      files_changed: body.files.map(f => f.path),
+      files_changed: body.files.map((f) => f.path),
       tokens_used:   body.tokensUsed,
       duration_ms:   body.durationMs,
       source:        'stream',
@@ -199,6 +206,16 @@ export async function saveStreamResult(body: SaveStreamBody): Promise<{ app: { _
   }
 
   // Create new app
+  const appPayload = {
+    user_id:      userId,
+    name:         body.artifactName || body.prompt?.slice(0, 60) || 'New App',
+    description:  body.description || body.prompt?.slice(0, 200),
+    type:         body.appType || 'web',
+    status:       'draft',
+    generated_code: generatedCode,
+    generation:   { prompt: body.prompt, defaultProvider: body.provider },
+  };
+
   const { data, error } = await supabase
     .schema('appmaker')
     .from('apps')
