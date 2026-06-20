@@ -50,3 +50,26 @@ branch `platform-fixes`. Severity reflects impact on the core product.
 - **Pagination** for Projects/Dashboard before app counts grow.
 - **`app_access` tracking** so the platform "your apps" dashboard sees AppMaker usage.
 - **Finish design-system migration**: remaining legacy `.scss` pages → design tokens.
+
+## Completion audit (round 2) & status
+
+Second pass covering the dimensions rate-limited in round 1 (UX, security, gaps).
+
+| Sev | Finding | Status |
+|---|---|---|
+| Critical | Legacy pages rendered with **no sidebar** + clipped (overflow:hidden) — unusable in the new shell | ✅ Layout now supplies Sidebar + scrollable main for non-self-shelled routes |
+| Critical | Admin hit dead `/api/admin/*` with a non-existent token → blank silent fail | ✅ Derives stats from own apps (RLS); honest notes; dead fetches removed |
+| Critical | Refine **silently deleted** untouched files (saved only the changed ones) | ✅ Merge streamed files over existing by path; refine no longer resets name/status |
+| High | Legacy palette (#1a1a1a/blue) clashed with shell; light-theme rendered white-on-black | ✅ Repointed legacy dark tokens to design palette; forced dark app-wide |
+| High | `.alert`/`.status-badge` undefined on legacy pages (errors shown as bare text); `--accent-rgb` undefined (no focus ring) | ✅ Promoted to global `index.scss` + `:focus-visible` outline |
+| High | AppDetail infinite spinner on load failure | ✅ Error card + Back button when load fails |
+| High | Provider keys in plaintext localStorage on shared SSO domain | ◑ Added explicit warning + revocation guidance; server-side key storage is build-new |
+| High | VisualEditor blank canvas (reads non-existent `frontend.code`) | ✅ Tab hidden (stub kept in repo) |
+| High | AIPrompt non-stream toggle = reachable dead path to removed backend | ✅ Toggle removed; streaming is the only path |
+| Medium | Preview iframe `allow-popups`/`allow-modals` (phishing surface) | ✅ Dropped; + no-referrer |
+| Medium | Register/onboarding: no provider-key guidance | ✅ First-run "add a provider key" banner on AppsList |
+| Medium | ProjectCard not keyboard-accessible; About dead `href="#"` | ✅ role/tabindex/keydown; About → real GitHub links |
+| Medium | CreateApp vestigial `groqAPIKey` field + premature status | ✅ Removed |
+| Low/Med | Pagination, real deploy automation, WorkflowEditor edges, emoji→icons | ⏳ Build-new / deferred |
+
+Security positives confirmed: no `dangerouslySetInnerHTML`/`eval`/`innerHTML` sinks; no committed secrets; anon key is publishable and RLS-backed; SSO cookie config matches the platform contract. Provider key is sent in the POST **body** (not the URL) and isn't logged client-side — confirm the Edge Function redacts it server-side.

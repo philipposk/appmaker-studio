@@ -15,8 +15,6 @@ const CreateApp: React.FC = () => {
     name: '',
     description: '',
     type: 'web' as 'web' | 'mobile' | 'api' | 'integration',
-    status: 'draft' as 'draft' | 'active' | 'paused' | 'archived',
-    groqAPIKey: '',
   });
   const [useTemplate, setUseTemplate] = useState(false);
 
@@ -34,14 +32,8 @@ const CreateApp: React.FC = () => {
       name: formData.name,
       description: formData.description,
       type: formData.type,
-      status: formData.status,
+      status: 'draft',
     };
-
-    if (formData.groqAPIKey) {
-      appData.configuration = {
-        groqAPIKey: formData.groqAPIKey,
-      };
-    }
 
     const result = await dispatch(createApp(appData));
     if (createApp.fulfilled.match(result)) {
@@ -122,65 +114,24 @@ const CreateApp: React.FC = () => {
             />
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="type" className="label">
-                App Type *
-              </label>
-              <select
-                id="type"
-                name="type"
-                value={formData.type}
-                onChange={handleChange}
-                className="input"
-                required
-                disabled={loading}
-              >
-                <option value="web">Web App</option>
-                <option value="mobile">Mobile App</option>
-                <option value="api">API</option>
-                <option value="integration">Integration</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="status" className="label">
-                Status *
-              </label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="input"
-                required
-                disabled={loading}
-              >
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-          </div>
-
           <div className="form-group">
-            <label htmlFor="groqAPIKey" className="label">
-              Groq API Key (Optional)
+            <label htmlFor="type" className="label">
+              App Type *
             </label>
-            <input
-              type="password"
-              id="groqAPIKey"
-              name="groqAPIKey"
-              value={formData.groqAPIKey}
+            <select
+              id="type"
+              name="type"
+              value={formData.type}
               onChange={handleChange}
               className="input"
+              required
               disabled={loading}
-              placeholder="Leave empty to use default"
-            />
-            <small className="form-help">
-              If you have your own Groq API key, enter it here. Otherwise, we'll use the default key.
-            </small>
+            >
+              <option value="web">Web App</option>
+              <option value="mobile">Mobile App</option>
+              <option value="api">API</option>
+              <option value="integration">Integration</option>
+            </select>
           </div>
 
           <div className="form-actions">
