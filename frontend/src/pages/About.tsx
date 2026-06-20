@@ -50,9 +50,8 @@ const About: React.FC = () => {
             Have questions, suggestions, or want to contribute? We'd love to hear from you!
           </p>
           <div className="contact-links">
-            <a href="#" className="btn btn--primary">Community Forum</a>
-            <a href="#" className="btn btn--secondary">Blog</a>
-            <a href="#" className="btn btn--secondary">Resources</a>
+            <a href="https://github.com/philipposk/AppMaker-vibecode" target="_blank" rel="noreferrer noopener" className="btn btn--primary">GitHub</a>
+            <a href="https://github.com/philipposk/AppMaker-vibecode/issues" target="_blank" rel="noreferrer noopener" className="btn btn--secondary">Report an issue</a>
           </div>
         </section>
       </div>

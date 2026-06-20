@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../utils/hooks';
 import { fetchApps, deleteApp } from '../store/slices/appSlice';
+import { getActiveProvider } from './ProviderSettings';
 import { TOKENS, I, Sidebar, Pill, PillKind } from '../design';
 
 /**
@@ -179,6 +180,8 @@ const AppsList: React.FC = () => {
               </div>
             </div>
 
+            <ProviderKeyBanner onConfigure={() => navigate('/settings/providers')} />
+
             <FilterRow filter={filter} setFilter={setFilter} counts={counts} />
 
             {loading ? (
@@ -345,6 +348,37 @@ const EmptyState: React.FC<{ onNew: () => void }> = ({ onNew }) => (
   </div>
 );
 
+/** First-run hint: generation needs a provider key (unless using local Ollama). */
+const ProviderKeyBanner: React.FC<{ onConfigure: () => void }> = ({ onConfigure }) => {
+  const { provider, apiKey } = getActiveProvider();
+  if (apiKey || provider === 'ollama') return null;
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
+        padding: '12px 16px', borderRadius: 10,
+        background: TOKENS.accentSoft, border: `1px solid ${TOKENS.accentLine}`,
+      }}
+    >
+      <I.Sparkle size={16} style={{ color: TOKENS.accent, flexShrink: 0 }} />
+      <div style={{ flex: 1, fontSize: 13.5, color: TOKENS.text1 }}>
+        Add an AI provider key to start generating apps.
+        <span style={{ color: TOKENS.text3 }}> Free options: Groq or a local Ollama.</span>
+      </div>
+      <button
+        onClick={onConfigure}
+        style={{
+          padding: '7px 12px', borderRadius: 8, border: 0,
+          background: TOKENS.accent, color: '#0B0B0E', fontSize: 13, fontWeight: 500,
+          cursor: 'pointer', whiteSpace: 'nowrap',
+        }}
+      >
+        Add a key
+      </button>
+    </div>
+  );
+};
+
 const ProjectCard: React.FC<{
   app: any;
   accent: string;
@@ -361,6 +395,12 @@ const ProjectCard: React.FC<{
   return (
     <div
       onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${app.name}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
+      }}
       style={{
         background: TOKENS.panel,
         border: `1px solid ${TOKENS.hairline}`,

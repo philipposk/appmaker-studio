@@ -173,7 +173,11 @@ const LivePreview: React.FC<LivePreviewProps> = ({ app }) => {
             src={previewUrl}
             className="preview-iframe"
             title="Live Preview"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+            // Least-privilege: generated code is untrusted. allow-same-origin is
+            // required for WebContainer; allow-popups/allow-modals are dropped —
+            // they enable phishing/redirects with no benefit for a preview.
+            sandbox="allow-scripts allow-same-origin allow-forms"
+            referrerPolicy="no-referrer"
           />
         ) : (
           <div className="preview-loading">

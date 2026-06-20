@@ -143,6 +143,20 @@ const ProviderSettings: React.FC = () => {
             </p>
           </div>
 
+          {/* Security disclosure — these are billable secrets in plaintext browser storage. */}
+          <div
+            style={{
+              marginBottom: 24, padding: '12px 14px', borderRadius: 10,
+              background: 'rgba(245,182,71,0.08)', border: '1px solid rgba(245,182,71,0.22)',
+              color: TOKENS.text2, fontSize: 13, lineHeight: 1.55,
+            }}
+          >
+            <strong style={{ color: TOKENS.amber }}>Keep these private.</strong> Provider keys are
+            stored unencrypted in your browser and are readable by any script on this site. Use a
+            scoped/limited key where your provider allows it, and revoke it from the provider's
+            dashboard if you suspect it leaked. Prefer free tiers (Groq, Ollama) for casual use.
+          </div>
+
           {loadError && (
             <div
               style={{

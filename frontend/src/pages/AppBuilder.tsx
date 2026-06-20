@@ -18,12 +18,13 @@ const DeploymentPanel = lazy(() => import('../components/builder/DeploymentPanel
 
 type Tab = 'preview' | 'code' | 'tests' | 'workflow' | 'visual' | 'deploy';
 
+// Workflow + Visual tabs are hidden: the GrapesJS visual editor never binds to
+// generated code (reads a non-existent field) and the workflow graph draws no
+// real edges. Their components are kept in the repo for a future real version.
 const TABS: { id: Tab; label: string; icon: React.FC<IconProps> }[] = [
   { id: 'preview', label: 'Preview', icon: I.Eye },
   { id: 'code', label: 'Code', icon: I.Code },
   { id: 'tests', label: 'Tests', icon: I.Beaker },
-  { id: 'workflow', label: 'Workflow', icon: I.Stack },
-  { id: 'visual', label: 'Visual', icon: I.Layout },
   { id: 'deploy', label: 'Deploy', icon: I.Rocket },
 ];
 
