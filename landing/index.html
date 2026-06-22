@@ -30,9 +30,9 @@
       --text2: #A6A6B0;
       --text3: #666673;
       --text4: #42424D;
-      --accent: #FF6A3D;
-      --accent-soft: rgba(255,106,61,0.14);
-      --accent-line: rgba(255,106,61,0.35);
+      --accent: #14B8A6;
+      --accent-soft: rgba(20,184,166,0.14);
+      --accent-line: rgba(20,184,166,0.35);
       --green: #4ADE80;
       --amber: #F5B647;
       --violet: #9F8CFF;
@@ -74,9 +74,9 @@
     .logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; }
     .logo-mark {
       width: 26px; height: 26px; border-radius: 7px;
-      background: linear-gradient(135deg, #FF8E5E, var(--accent));
+      background: linear-gradient(135deg, #5EEAD4, var(--accent));
       display: grid; place-items: center;
-      box-shadow: 0 4px 14px rgba(255,106,61,0.35);
+      box-shadow: 0 4px 14px rgba(20,184,166,0.35);
     }
     .nav-links { display: flex; align-items: center; gap: 28px; }
     .nav-links a { color: var(--text2); font-size: 14px; transition: color .15s; }
@@ -90,16 +90,16 @@
     .btn:hover { border-color: var(--text3); background: var(--panel2); }
     .btn-primary {
       background: var(--accent); color: #0B0B0E; border-color: transparent;
-      box-shadow: 0 4px 16px rgba(255,106,61,0.3);
+      box-shadow: 0 4px 16px rgba(20,184,166,0.3);
     }
-    .btn-primary:hover { background: #FF7C52; box-shadow: 0 6px 20px rgba(255,106,61,0.4); }
+    .btn-primary:hover { background: #2DD4BF; box-shadow: 0 6px 20px rgba(20,184,166,0.4); }
     @media (max-width: 720px) { .nav-links .hide-sm { display: none; } }
 
     /* ── Hero ────────────────────────────── */
     header.hero { padding: 96px 0 72px; position: relative; text-align: center; }
     .hero::before {
       content: ''; position: absolute; inset: 0;
-      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(255,106,61,0.10), transparent 70%);
+      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(20,184,166,0.10), transparent 70%);
       pointer-events: none;
     }
     .badge {
@@ -129,7 +129,7 @@
       max-width: 720px; margin: 56px auto 0; text-align: left;
       background: var(--panel); border: 1px solid var(--hairline2);
       border-radius: 16px; padding: 5px;
-      box-shadow: 0 0 0 6px rgba(255,106,61,0.04), 0 40px 90px -30px rgba(0,0,0,0.8);
+      box-shadow: 0 0 0 6px rgba(20,184,166,0.04), 0 40px 90px -30px rgba(0,0,0,0.8);
     }
     .mock-body { padding: 18px 18px 8px; color: var(--text1); font-size: 15px; min-height: 64px; }
     .mock-body .caret {
@@ -150,7 +150,7 @@
     .mock-send {
       margin-left: auto; width: 32px; height: 32px; border-radius: 8px;
       background: var(--accent); color: #0B0B0E; display: grid; place-items: center;
-      box-shadow: 0 4px 14px rgba(255,106,61,0.4);
+      box-shadow: 0 4px 14px rgba(20,184,166,0.4);
     }
 
     /* ── Section shells ──────────────────── */
@@ -222,7 +222,7 @@
     /* ── Final CTA ───────────────────────── */
     .final {
       text-align: center;
-      background: radial-gradient(ellipse 50% 80% at 50% 50%, rgba(255,106,61,0.08), transparent 70%);
+      background: radial-gradient(ellipse 50% 80% at 50% 50%, rgba(20,184,166,0.08), transparent 70%);
     }
     .final h2 { font-size: clamp(28px, 5vw, 42px); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 16px; }
     .final p { color: var(--text2); font-size: 17px; margin-bottom: 32px; }

@@ -634,7 +634,7 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
                 color: '#0B0B0E',
                 display: 'grid',
                 placeItems: 'center',
-                boxShadow: '0 3px 10px rgba(255,106,61,0.35)',
+                boxShadow: '0 3px 10px rgba(20,184,166,0.35)',
               }}
             >
               {busy ? (

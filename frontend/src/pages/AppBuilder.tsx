@@ -179,7 +179,7 @@ const AppBuilder: React.FC = () => {
                     display: 'grid',
                     placeItems: 'center',
                     padding: 24,
-                    background: `radial-gradient(circle at 50% 0%, rgba(255,106,61,0.07), transparent 60%), ${TOKENS.bg}`,
+                    background: `radial-gradient(circle at 50% 0%, rgba(20,184,166,0.07), transparent 60%), ${TOKENS.bg}`,
                     minHeight: '100%',
                   }}
                 >
@@ -299,7 +299,7 @@ const WorkspaceHeader: React.FC<{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          boxShadow: '0 4px 14px rgba(255,106,61,0.3)',
+          boxShadow: '0 4px 14px rgba(20,184,166,0.3)',
         }}
       >
         <I.Rocket size={13} />

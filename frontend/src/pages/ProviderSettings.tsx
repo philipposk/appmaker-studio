@@ -360,7 +360,7 @@ const ProviderSettings: React.FC = () => {
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(255,106,61,0.3)',
+                boxShadow: '0 4px 14px rgba(20,184,166,0.3)',
               }}
             >
               Save keys

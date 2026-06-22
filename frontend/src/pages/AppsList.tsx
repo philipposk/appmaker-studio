@@ -21,7 +21,7 @@ const STATUS_TO_PILL: Record<string, PillKind> = {
 };
 
 function accentFor(i: number) {
-  return ['#5BB3FF', TOKENS.accent, '#9F8CFF', '#4ADE80', '#F5B647'][i % 5];
+  return ['#5BB3FF', TOKENS.accent, '#FB7185', '#4ADE80', '#F5B647'][i % 5];
 }
 
 function matchesFilter(app: any, key: FilterKey) {
@@ -147,7 +147,7 @@ const AppsList: React.FC = () => {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                boxShadow: '0 4px 14px rgba(255,106,61,0.3)',
+                boxShadow: '0 4px 14px rgba(20,184,166,0.3)',
               }}
             >
               <I.Plus size={14} stroke={2.4} /> New project

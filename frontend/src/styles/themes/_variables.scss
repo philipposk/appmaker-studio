@@ -22,8 +22,8 @@ $dark-text-primary: #F2F2F5; // TOKENS.text1
 $dark-text-secondary: #A6A6B0; // TOKENS.text2
 $dark-text-tertiary: #666673;  // TOKENS.text3
 $dark-border: #22222C;       // TOKENS.hairline
-$dark-accent: #FF6A3D;       // TOKENS.accent
-$dark-accent-hover: #FF7C52;
+$dark-accent: #14B8A6;       // TOKENS.accent
+$dark-accent-hover: #2DD4BF;
 $dark-success: #4ADE80;
 $dark-error: #FF8E72;
 $dark-warning: #F5B647;
@@ -55,7 +55,7 @@ $dark-warning: #F5B647;
   --border: #{$dark-border};
   --accent: #{$dark-accent};
   --accent-hover: #{$dark-accent-hover};
-  --accent-rgb: 255, 106, 61;
+  --accent-rgb: 20, 184, 166;
   --success: #{$dark-success};
   --error: #{$dark-error};
   --warning: #{$dark-warning};

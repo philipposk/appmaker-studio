@@ -35,7 +35,7 @@ export async function downloadAppZip(app: any): Promise<{ ok: boolean; fileCount
       '',
       app?.description ? `> ${app.description}` : '',
       '',
-      'Generated with AppMaker (appmaker.6x7.gr).',
+      'Generated with Vibecoders Studio (studio.6x7.gr).',
       '',
       '## Run',
       '```bash',

@@ -48,7 +48,7 @@ const STATUS_BY_APP_STATUS: Record<string, Status> = {
 };
 
 function pickAccent(i: number) {
-  return ['#5BB3FF', TOKENS.accent, '#9F8CFF', '#4ADE80', '#F5B647'][i % 5];
+  return ['#5BB3FF', TOKENS.accent, '#FB7185', '#4ADE80', '#F5B647'][i % 5];
 }
 
 const Dashboard: React.FC = () => {
@@ -306,7 +306,7 @@ const PromptBox: React.FC<{
       border: `1px solid ${TOKENS.hairline2}`,
       borderRadius: 16,
       padding: 4,
-      boxShadow: '0 0 0 6px rgba(255,106,61,0.04), 0 24px 60px -20px rgba(0,0,0,0.6)',
+      boxShadow: '0 0 0 6px rgba(20,184,166,0.04), 0 24px 60px -20px rgba(0,0,0,0.6)',
     }}
   >
     <div style={{ padding: '14px 16px 6px' }}>
@@ -366,7 +366,7 @@ const PromptBox: React.FC<{
           color: '#0B0B0E',
           display: 'grid',
           placeItems: 'center',
-          boxShadow: '0 4px 14px rgba(255,106,61,0.4)',
+          boxShadow: '0 4px 14px rgba(20,184,166,0.4)',
         }}
       >
         <I.ArrowUp size={16} stroke={2.4} />

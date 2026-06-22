@@ -144,7 +144,7 @@ const Register: React.FC = () => {
             padding: '11px 16px', borderRadius: 9, border: 0,
             background: TOKENS.accent, color: '#0B0B0E', fontSize: 14, fontWeight: 500,
             cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1,
-            fontFamily: TOKENS.sans, boxShadow: '0 4px 14px rgba(255,106,61,0.3)',
+            fontFamily: TOKENS.sans, boxShadow: '0 4px 14px rgba(20,184,166,0.3)',
           }}>
           {loading ? 'Creating account…' : 'Sign up'}
         </button>
