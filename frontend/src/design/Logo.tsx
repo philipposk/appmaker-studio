@@ -39,7 +39,7 @@ const Logo: React.FC<LogoProps> = ({ size = 22, dim = false }) => (
         letterSpacing: '-0.01em',
       }}
     >
-      AppMaker
+      AppMaker<span style={{ color: TOKENS.accent, fontWeight: 500 }}>&nbsp;Studio</span>
     </span>
   </div>
 );
