@@ -272,6 +272,7 @@ const json = (status: number, body: unknown) =>
 
 export async function POST(req: Request): Promise<Response> {
   const startedAt = Date.now();
+  if (!ANON_KEY && !SERVICE_KEY) return json(503, { message: 'Server is missing its Supabase configuration.' });
   // Every request needs a signed-in user (no anonymous proxy).
   const auth = createClient(SUPABASE_URL, ANON_KEY || SERVICE_KEY, { auth: { persistSession: false } });
   const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
