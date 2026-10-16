@@ -1,9 +1,9 @@
 /**
- * SSE client — talks to the Supabase Edge Function (appmaker-stream)
- * instead of the old Express backend.
+ * SSE client — talks to the /api/stream Vercel Function instead of the old
+ * Express backend.
  *
  * Auth: reads the current Supabase session access_token and sends it
- * as Authorization: Bearer. The Edge Function has verify_jwt: true.
+ * as Authorization: Bearer; the function verifies it.
  *
  * Save: writes directly to appmaker.apps / appmaker.iterations via
  * supabase-js (handled in appSlice.ts — not here).
@@ -11,12 +11,14 @@
 
 import { supabase } from '../lib/supabase';
 import { buildGeneratedCode, getAppFiles } from '../lib/appFiles';
+import { getBillingStatus, invalidateBillingStatus, isProPlan, showUpgrade, BillingStatus } from '../lib/billing';
 
 export type StreamEvent =
   | { type: 'token'; delta: string }
   | { type: 'action'; action: FileAction }
-  | { type: 'done'; usage?: any; model?: string }
-  | { type: 'error'; message: string }
+  | { type: 'done'; usage?: any; model?: string; charged_usd?: number; balance_usd?: number }
+  | { type: 'error'; message: string; code?: string }
+  | { type: 'continue'; round: number; filesSoFar: number }
   | { type: 'complete'; ok: boolean }
   // autofix events (kept for forward-compat, AutoFix now runs in browser)
   | { type: 'iteration_start'; iteration: number }
@@ -42,11 +44,12 @@ export interface GenerateOptions {
   refineFrom?: string;
 }
 
-/** Edge Function URL — set REACT_APP_SUPABASE_URL in .env */
-const SUPABASE_URL = (process.env.REACT_APP_SUPABASE_URL as string)
-  || 'https://fmrnqepyyjucnfbrqawl.supabase.co';
-
-const EDGE_STREAM_URL = `${SUPABASE_URL}/functions/v1/appmaker-stream`;
+/**
+ * Streaming endpoint: the Vercel Function in frontend/api/stream.ts (300s
+ * limit vs 150s on the old Supabase Edge Function). Same origin, so no CORS.
+ * Override with REACT_APP_STREAM_URL for local dev against a deployed API.
+ */
+const EDGE_STREAM_URL = (process.env.REACT_APP_STREAM_URL as string) || '/api/stream';
 
 /** Get the current session's access token (used as Bearer in Edge Fn auth). */
 async function getToken(): Promise<string> {
@@ -78,7 +81,11 @@ export function postSSE(
     });
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => '');
-      throw new Error(`Stream request failed: ${res.status} ${text}`);
+      let err: { code?: string; message?: string; balance_usd?: number } = {};
+      try { err = JSON.parse(text); } catch { /* not JSON */ }
+      if (err.code === 'needs_pro' || err.code === 'no_key') showUpgrade('needs_key_or_pro');
+      if (err.code === 'no_credits') showUpgrade('no_credits', err.balance_usd);
+      throw new Error(err.message || `Stream request failed: ${res.status} ${text}`);
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -110,15 +117,77 @@ export function postSSE(
   return { promise, cancel: () => controller.abort() };
 }
 
+/**
+ * Decide who pays for this generation. The user's own key wins; otherwise a
+ * Pro (or owner) account runs on the platform key ("pro"). Anyone else gets
+ * the "add a key or go Pro" modal instead of a request.
+ */
+async function routeRequest(opts: GenerateOptions): Promise<GenerateOptions> {
+  const ownKey = opts.provider !== 'pro' && (opts.apiKey?.trim() || opts.provider === 'ollama');
+  if (ownKey) return opts;
+  let status: BillingStatus;
+  // A failed lookup is not "free": don't nag a paying user with the upgrade modal.
+  try { status = await getBillingStatus(); } catch {
+    throw new Error("Couldn't check your plan. Try again in a moment.");
+  }
+  if (isProPlan(status)) {
+    if (status.plan === 'pro' && status.balance_usd <= 0) {
+      showUpgrade('no_credits', status.balance_usd);
+      throw new Error('Out of credits. Top up to keep building.');
+    }
+    return { ...opts, provider: 'pro', apiKey: undefined, model: undefined };
+  }
+  showUpgrade('needs_key_or_pro');
+  throw new Error('Add your own API key, or upgrade to Pro to build with ours.');
+}
+
+/** Extra rounds after a build hits the server time limit (each round ≤270s). */
+const MAX_CONTINUES = 2;
+
+/**
+ * Stream a generation. If the server stops a long build (error code
+ * "timeout"), automatically start another round that gets the files written
+ * so far and is asked to write only what's missing — files keep arriving
+ * through the same onEvent, with a 'continue' event in between.
+ */
 export function streamGenerate(opts: GenerateOptions, onEvent: (ev: StreamEvent) => void) {
-  return postSSE(EDGE_STREAM_URL, opts, onEvent);
+  let inner: { promise: Promise<void>; cancel: () => void } | null = null;
+  let cancelled = false;
+  const promise = (async () => {
+    const routed = await routeRequest(opts);
+    const written = new Map<string, string>();
+    let req = routed;
+    for (let round = 0; !cancelled; round++) {
+      let timedOut = false;
+      inner = postSSE(EDGE_STREAM_URL, req, (ev) => {
+        if (ev.type === 'action' && ev.action.type === 'file') written.set(ev.action.path, ev.action.content);
+        if (ev.type === 'done' && ev.balance_usd !== undefined) invalidateBillingStatus();
+        if (ev.type === 'error' && ev.code === 'timeout' && round < MAX_CONTINUES) { timedOut = true; return; }
+        onEvent(ev);
+      });
+      await inner.promise;
+      if (!timedOut || cancelled) return;
+
+      onEvent({ type: 'continue', round: round + 1, filesSoFar: written.size });
+      const soFar = Array.from(written, ([path, content]) => `--- ${path}\n${content}`).join('\n\n');
+      req = {
+        ...routed,
+        refineFrom: [routed.refineFrom, soFar].filter(Boolean).join('\n\n'),
+        prompt:
+          `CONTINUE an interrupted build. Original request: ${opts.prompt.slice(0, 4000)}\n` +
+          `Already written (full content is in the context): ${Array.from(written.keys()).join(', ') || 'none'}.\n` +
+          'Write ONLY the files that are still missing to finish this request. Do not repeat finished files.',
+      };
+    }
+  })();
+  return { promise, cancel: () => { cancelled = true; inner?.cancel(); } };
 }
 
 /** listProviders: static list now that the Edge Function handles all providers. */
 export async function listProviders(): Promise<{ available: string[]; all: string[] }> {
   return {
     available: [], // availability is provider-key-dependent and checked by Edge Fn at runtime
-    all: ['groq', 'openai', 'openrouter', 'anthropic', 'together', 'mistral', 'ollama'],
+    all: ['pro', 'groq', 'openai', 'openrouter', 'anthropic', 'together', 'mistral', 'ollama'],
   };
 }
 

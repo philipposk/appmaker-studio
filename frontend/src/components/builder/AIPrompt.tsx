@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '../../utils/hooks';
 import { generateApp, refineApp } from '../../store/slices/generationSlice';
 import { fetchApp } from '../../store/slices/appSlice';
 import { listProviders, streamGenerate, saveStreamResult, FileAction, StreamEvent } from '../../services/streamClient';
-import { getActiveProvider } from '../../pages/ProviderSettings';
+import { getActiveProvider, getKeyFor } from '../../pages/ProviderSettings';
 import { TOKENS, I } from '../../design';
 
 interface AIPromptProps {
@@ -13,6 +13,10 @@ interface AIPromptProps {
 }
 
 type GeneratedFile = { path: string; content: string };
+
+// Refine context: total chars of existing code sent to the model.
+const REFINE_CONTEXT_BUDGET = 150000;
+const TRUNC_MARKER = '/* [TRUNCATED — do not rewrite this file] */';
 
 /**
  * AI chat panel — left column of the builder workspace.
@@ -72,11 +76,28 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
       ...(app?.generatedCode?.frontend?.structure || []),
       ...(app?.generatedCode?.backend?.structure || []),
     ];
-    return files
-      .filter((f) => f?.path && typeof f.content === 'string')
-      .slice(0, 40)
-      .map((f) => `--- ${f.path}\n${f.content.slice(0, 2000)}`)
-      .join('\n\n');
+    // Send FULL contents: the model outputs changed files whole and they replace
+    // the original, so a silently cut file would lose code. Over budget: the file
+    // that doesn't fit is cut + marked, the rest are listed by path only.
+    const parts: string[] = [];
+    const omitted: string[] = [];
+    let used = 0;
+    for (const f of files.filter((f) => f?.path && typeof f.content === 'string')) {
+      const header = `--- ${f.path}\n`;
+      const left = REFINE_CONTEXT_BUDGET - used - header.length - 2;
+      if (omitted.length || (f.content.length > left && left < TRUNC_MARKER.length + 500)) {
+        omitted.push(f.path);
+        continue;
+      }
+      const body =
+        f.content.length <= left
+          ? f.content
+          : `${f.content.slice(0, left - TRUNC_MARKER.length - 1)}\n${TRUNC_MARKER}`;
+      parts.push(header + body);
+      used += header.length + body.length + 2;
+    }
+    if (omitted.length) parts.push(`Files omitted from context (do not rewrite): ${omitted.join(', ')}`);
+    return parts.join('\n\n');
   }, [isExistingApp, app]);
 
   // ----- Legacy non-streaming path -----
@@ -119,9 +140,11 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
     setStreamRunning(true);
     setStreamStartedAt(Date.now());
 
-    const { provider: defaultProv, apiKey: storedKey } = getActiveProvider();
+    // Key must match the provider actually used (default-provider key sent to
+    // another provider = 401). "pro" has no saved key → runs on the platform key.
+    const { provider: defaultProv } = getActiveProvider();
     const activeProvider = provider || defaultProv;
-    const activeKey = groqAPIKey || storedKey;
+    const activeKey = groqAPIKey || getKeyFor(activeProvider);
 
     const log = (s: string) => setStreamLog((prev) => (prev.length > 800 ? [...prev.slice(-800), s] : [...prev, s]));
 
@@ -153,6 +176,8 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
         if (model) setStreamModel(model);
         if (tokens) setTokensUsed(tokens);
         log(`✓ done — ${model || '?'} · ${tokens ?? '?'} tokens`);
+      } else if (ev.type === 'continue') {
+        log(`… big build, continuing (part ${ev.round + 1}, ${ev.filesSoFar} files so far)`);
       } else if (ev.type === 'error') {
         setStreamError(ev.message);
         log(`✗ ${ev.message}`);
@@ -168,7 +193,10 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
       );
       await promise;
     } catch (err: any) {
-      setStreamError(err?.message || String(err));
+      const msg = err?.message || String(err);
+      setStreamError(msg);
+      // Also log it so the output panel renders (401/402/503/network errors).
+      log(`✗ ${msg}`);
     } finally {
       setStreamRunning(false);
     }
@@ -296,7 +324,7 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <I.Cube size={13} style={{ color: TOKENS.accent }} />
               <span style={{ fontSize: 12.5, fontWeight: 500, color: TOKENS.text1 }}>
-                {artifactName || 'Streaming…'}
+                {artifactName || (streamRunning ? 'Streaming…' : streamError ? 'Stopped' : (app?.name || 'Changes ready'))}
               </span>
               {streamRunning && (
                 <span

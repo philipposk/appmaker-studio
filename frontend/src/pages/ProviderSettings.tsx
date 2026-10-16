@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { listProviders } from '../services/streamClient';
 import { TOKENS, I, Sidebar } from '../design';
+import ProBillingCard from '../components/common/ProBillingCard';
 
 /**
  * Provider settings page.
@@ -11,6 +12,12 @@ import { TOKENS, I, Sidebar } from '../design';
  */
 
 const PROVIDER_INFO: Record<string, { label: string; keyEnv: string; help: string; getKeyUrl: string }> = {
+  pro: {
+    label: 'AppMaker Pro (our key)',
+    keyEnv: '',
+    help: 'No key needed. Pay per build from Pro credits.',
+    getKeyUrl: '',
+  },
   groq: {
     label: 'Groq',
     keyEnv: 'GROQ_API_KEY',
@@ -173,6 +180,8 @@ const ProviderSettings: React.FC = () => {
             </div>
           )}
 
+          <ProBillingCard />
+
           {/* Default provider selector */}
           <div
             style={{
@@ -220,7 +229,7 @@ const ProviderSettings: React.FC = () => {
               marginBottom: 24,
             }}
           >
-            {providers.map((name) => {
+            {providers.filter((name) => name !== 'pro').map((name) => {
               const info = PROVIDER_INFO[name] || { label: name, keyEnv: '', help: '', getKeyUrl: '' };
               const isLocal = name === 'ollama';
               const isAvail = available.includes(name);
@@ -387,4 +396,13 @@ export function getActiveProvider(): { provider: string; apiKey?: string } {
   const provider = localStorage.getItem(LS_DEFAULT) || 'groq';
   const keys = loadKeys();
   return { provider, apiKey: keys[provider] || undefined };
+}
+
+/**
+ * Helper: the saved key for a specific provider (trimmed), or undefined.
+ * Used so the key sent always matches the provider actually picked.
+ */
+export function getKeyFor(provider: string): string | undefined {
+  const key = loadKeys()[provider];
+  return typeof key === 'string' && key.trim() ? key.trim() : undefined;
 }
