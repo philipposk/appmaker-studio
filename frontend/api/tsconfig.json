@@ -1,0 +1,15 @@
+{
+  "//": "Vercel Functions in api/ compile to CommonJS (frontend/package.json has no \"type\": \"module\"); CRA's tsconfig targets the browser bundle.",
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": false
+  },
+  "include": ["*.ts"]
+}

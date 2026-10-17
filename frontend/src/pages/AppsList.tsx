@@ -362,7 +362,7 @@ const ProviderKeyBanner: React.FC<{ onConfigure: () => void }> = ({ onConfigure 
     >
       <I.Sparkle size={16} style={{ color: TOKENS.accent, flexShrink: 0 }} />
       <div style={{ flex: 1, fontSize: 13.5, color: TOKENS.text1 }}>
-        Add an AI provider key to start generating apps.
+        Add an AI provider key, or upgrade to Pro, to start generating apps.
         <span style={{ color: TOKENS.text3 }}> Free options: Groq or a local Ollama.</span>
       </div>
       <button

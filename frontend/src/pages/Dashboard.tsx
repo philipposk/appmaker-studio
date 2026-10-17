@@ -121,6 +121,9 @@ const Dashboard: React.FC = () => {
         setTokensUsed(accTokens);
         accLog.push(`done — ${accModel} / ${accTokens ?? '?'} tokens`);
         setLog([...accLog]);
+      } else if (ev.type === 'continue') {
+        accLog.push(`… big build, continuing (part ${ev.round + 1}, ${ev.filesSoFar} files so far)`);
+        setLog([...accLog]);
       } else if (ev.type === 'error') {
         setError(ev.message);
         accLog.push(`ERROR: ${ev.message}`);
