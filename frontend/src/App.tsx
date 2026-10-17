@@ -22,6 +22,7 @@ import About from './pages/About';
 import Admin from './pages/Admin';
 import ProviderSettings from './pages/ProviderSettings';
 import PrivateRoute from './components/common/PrivateRoute';
+import UpgradeModal from './components/common/UpgradeModal';
 
 // The builder pulls the heavy editor stack — load it only when its route opens.
 const AppBuilder = lazy(() => import('./pages/AppBuilder'));
@@ -71,6 +72,7 @@ const AppContent = () => {
 
   return (
     <Router>
+      <UpgradeModal />
       <Suspense fallback={
         <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: '#0B0B0E' }}>
           <div className="spinner" />
