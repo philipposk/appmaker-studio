@@ -3,3 +3,23 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
+
+// react-router 7 needs TextEncoder/TextDecoder at import time; the jsdom
+// environment bundled with react-scripts 5 (Jest 27) doesn't expose them.
+import { TextEncoder, TextDecoder } from 'util';
+Object.assign(globalThis, { TextEncoder, TextDecoder });
+
+// jsdom has no matchMedia; themeSlice reads it at import time.
+if (!window.matchMedia) {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList);
+}
