@@ -41,14 +41,76 @@ const PROVIDER_ENDPOINTS: Record<string, string> = {
   mistral:    'https://api.mistral.ai/v1/chat/completions',
 };
 
+// Checked against each provider's model docs / OpenRouter's catalog on 2026-10-18.
+// Providers retire models often, so a wrong default is not fatal: see healModel().
 const DEFAULT_MODELS: Record<string, string> = {
-  groq:       'llama-3.3-70b-versatile',
-  openai:     'gpt-4o-mini',
-  openrouter: 'openai/gpt-4o-mini',
-  together:   'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-  mistral:    'codestral-latest',
-  anthropic:  'claude-3-5-haiku-20241022',
+  groq:       'openai/gpt-oss-120b',
+  openai:     'gpt-6-luna',
+  openrouter: 'openai/gpt-oss-120b',
+  together:   'openai/gpt-oss-120b',
+  mistral:    'codestral-2508',
+  anthropic:  'claude-haiku-5-5',
 };
+
+const MODELS_ENDPOINTS: Record<string, string> = {
+  groq:       'https://api.groq.com/openai/v1/models',
+  openai:     'https://api.openai.com/v1/models',
+  openrouter: 'https://openrouter.ai/api/v1/models',
+  together:   'https://api.together.xyz/v1/models',
+  mistral:    'https://api.mistral.ai/v1/models',
+  anthropic:  'https://api.anthropic.com/v1/models?limit=100',
+};
+
+// Best model first. An entry matches an available id exactly, else as a prefix.
+const MODEL_PREFS: Record<string, string[]> = {
+  groq:       ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'qwen/qwen3', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'],
+  openai:     ['gpt-6-luna', 'gpt-5.6-luna', 'gpt-6.1-sol', 'gpt-5-mini', 'gpt-4.1-mini', 'gpt-4o-mini'],
+  openrouter: ['openai/gpt-oss-120b', 'qwen/qwen3-coder', 'openai/gpt-6-luna', 'deepseek/deepseek-v4-flash'],
+  together:   ['openai/gpt-oss-120b', 'Qwen/Qwen3', 'deepseek-ai/DeepSeek-V4'],
+  mistral:    ['codestral-2508', 'codestral-latest', 'mistral-medium-3', 'mistral-small'],
+  anthropic:  ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'],
+};
+
+// Ids from /models that are not chat models (speech, embeddings, safety, images...).
+const NON_CHAT = /whisper|tts|embed|moderation|guard|safeguard|dall-e|image|audio|realtime|transcribe|ocr|orpheus|sora|rerank|:batch|-pro$/i;
+
+/** The provider says the model does not exist / is retired (not a transient failure). */
+function isModelGone(status: number, text: string): boolean {
+  if (status === 404) return true;
+  return status === 400 && /model_not_found|model_decommissioned|model_not_available|decommissioned/i.test(text);
+}
+
+/** Best model from `ids` (ids of a provider's /models list), never `failed`. */
+function pickModel(ids: string[], prefs: string[], failed: string): string | null {
+  const usable = ids.filter((id) => id !== failed && !NON_CHAT.test(id));
+  for (const p of prefs) {
+    const hit = usable.find((id) => id === p) ?? usable.find((id) => id.startsWith(p));
+    if (hit) return hit;
+  }
+  return usable[0] ?? null;
+}
+
+/** Ask the provider which models this key can use and pick the best one. */
+async function healModel(provider: string, apiKey: string, failed: string): Promise<string | null> {
+  const url = MODELS_ENDPOINTS[provider];
+  if (!url) return null;
+  try {
+    const headers: Record<string, string> = provider === 'anthropic'
+      ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+      : { Authorization: `Bearer ${apiKey}` };
+    const r = await fetch(url, { headers, signal: AbortSignal.timeout(8_000) });
+    if (!r.ok) return null;
+    const body = (await r.json()) as unknown;
+    const list = (Array.isArray(body) ? body : (body as { data?: unknown[] }).data ?? []) as
+      { id?: string; type?: string; active?: boolean }[];
+    const ids = list
+      .filter((m) => typeof m.id === 'string' && m.active !== false && (m.type == null || m.type === 'chat' || m.type === 'model'))
+      .map((m) => m.id as string);
+    return pickModel(ids, MODEL_PREFS[provider] ?? [], failed);
+  } catch {
+    return null;
+  }
+}
 
 // ── Pro models: free OpenRouter models first (same strategy as
 // appmaker.6x7.gr), then cheap paid twins when the free pool is busy.
@@ -196,13 +258,18 @@ async function* sseLines(body: ReadableStream<Uint8Array>): AsyncGenerator<strin
 async function streamOpenAICompat(
   url: string, apiKey: string, models: string[], messages: Msg[], emit: Emit, signal: AbortSignal,
   extra: Record<string, unknown> = {}, extraHeaders: Record<string, string> = {},
+  /** Called once when a model is gone; returns a replacement model id, or null. */
+  heal?: (failed: string) => Promise<string | null>,
 ): Promise<StreamResult> {
   let resp: Response | null = null;
   let model = models[0];
   // The id we asked for and the provider accepted (chunk.model may differ).
   let requested = models[0];
   let lastErr = '';
-  for (const m of models) {
+  let lastStatus = 0;
+  let healed = false;
+  const queue = [...models];
+  for (let m = queue.shift(); m !== undefined; m = queue.shift()) {
     model = m;
     const r = await fetch(url, {
       method: 'POST',
@@ -211,10 +278,20 @@ async function streamOpenAICompat(
       signal,
     });
     if (r.ok && r.body) { resp = r; requested = m; break; }
-    lastErr = `Provider error ${r.status} (${m}): ${(await r.text().catch(() => '')).slice(0, 200)}`;
+    const text = (await r.text().catch(() => '')).slice(0, 200);
+    lastStatus = r.status;
+    lastErr = `Provider error ${r.status} (${m}): ${text}`;
+    if (heal && !healed && isModelGone(r.status, text)) {
+      healed = true;
+      const alt = await heal(m);
+      if (alt) {
+        emit('notice', { message: `Model ${m} is no longer available; using ${alt} instead.`, model: alt });
+        queue.unshift(alt);
+      }
+    }
   }
   if (!resp?.body) {
-    emit('error', { message: lastErr || 'Provider unavailable' });
+    emit('error', { message: lastErr || 'Provider unavailable', status: lastStatus || undefined });
     return { model, requested: model, usage: null, completed: false, chars: 0 };
   }
   const sink = actionSink(emit);
@@ -226,7 +303,7 @@ async function streamOpenAICompat(
       const chunk = JSON.parse(raw);
       if (chunk.model) model = chunk.model;
       if (chunk.usage) usage = chunk.usage;
-      if (chunk.error) emit('error', { message: String(chunk.error.message ?? chunk.error) });
+      if (chunk.error) emit('error', { message: String(chunk.error.message ?? chunk.error), status: Number(chunk.error.code) || undefined });
       const delta = chunk.choices?.[0]?.delta?.content ?? '';
       if (delta) sink.push(delta);
       if (chunk.choices?.[0]?.finish_reason) completed = true;
@@ -237,17 +314,31 @@ async function streamOpenAICompat(
 }
 
 async function streamAnthropic(
-  apiKey: string, model: string, messages: Msg[], emit: Emit, signal: AbortSignal,
+  apiKey: string, requestedModel: string, messages: Msg[], emit: Emit, signal: AbortSignal,
 ): Promise<StreamResult> {
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  let model = requestedModel;
+  const send = (m: string) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model, messages, stream: true, max_tokens: 16000, system: SYSTEM_PROMPT }),
+    body: JSON.stringify({ model: m, messages, stream: true, max_tokens: 16000, system: SYSTEM_PROMPT }),
     signal,
   });
+  let resp = await send(model);
+  if (!resp.ok) {
+    const txt = (await resp.text().catch(() => '')).slice(0, 200);
+    const alt = isModelGone(resp.status, txt) ? await healModel('anthropic', apiKey, model) : null;
+    if (alt) {
+      emit('notice', { message: `Model ${model} is no longer available; using ${alt} instead.`, model: alt });
+      model = alt;
+      resp = await send(model);
+    } else {
+      emit('error', { message: `Anthropic error ${resp.status}: ${txt}`, status: resp.status });
+      return { model, requested: model, usage: null, completed: false, chars: 0 };
+    }
+  }
   if (!resp.ok || !resp.body) {
     const txt = await resp.text().catch(() => '');
-    emit('error', { message: `Anthropic error ${resp.status}: ${txt.slice(0, 200)}` });
+    emit('error', { message: `Anthropic error ${resp.status}: ${txt.slice(0, 200)}`, status: resp.status });
     return { model, requested: model, usage: null, completed: false, chars: 0 };
   }
   const sink = actionSink(emit);
@@ -363,7 +454,8 @@ export async function POST(req: Request): Promise<Response> {
         } else if (provider === 'anthropic') {
           result = await streamAnthropic(key, model, messages, emit, upstream.signal);
         } else {
-          result = await streamOpenAICompat(PROVIDER_ENDPOINTS[provider], key, [model], messages, emit, upstream.signal);
+          result = await streamOpenAICompat(PROVIDER_ENDPOINTS[provider], key, [model], messages, emit, upstream.signal,
+            {}, {}, (failed) => healModel(provider, key, failed));
         }
       } catch (err) {
         const timedOut = upstream.signal.aborted && !clientGone;
