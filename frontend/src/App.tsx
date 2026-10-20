@@ -23,6 +23,7 @@ import Admin from './pages/Admin';
 import ProviderSettings from './pages/ProviderSettings';
 import PrivateRoute from './components/common/PrivateRoute';
 import UpgradeModal from './components/common/UpgradeModal';
+import { trackAppAccessClient } from './lib/app-access-client';
 
 // The builder pulls the heavy editor stack — load it only when its route opens.
 const AppBuilder = lazy(() => import('./pages/AppBuilder'));
@@ -49,6 +50,7 @@ const AppContent = () => {
     // also clears the loading gate. No separate getMe() (it raced this one).
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       dispatch(setSession({ session }));
+      void trackAppAccessClient(supabase, session?.user, 'appmaker');
     });
 
     // Safety net: if the initial event somehow never arrives (storage lock,
