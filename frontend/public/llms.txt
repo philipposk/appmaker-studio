@@ -1,0 +1,12 @@
+# Vibecoders Studio
+
+> Describe an app and watch AI write the full stack as it streams: live in-browser preview, tests, and a zip export when you're done.
+
+## Pages
+- / — The studio
+
+## Source
+- https://github.com/philipposk/appmaker-studio
+
+## Contact
+Built on the 6x7 platform (https://6x7.gr)
