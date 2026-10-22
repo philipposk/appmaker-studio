@@ -4,7 +4,8 @@ import { useAppDispatch, useAppSelector } from '../../utils/hooks';
 import { generateApp, refineApp } from '../../store/slices/generationSlice';
 import { fetchApp } from '../../store/slices/appSlice';
 import { listProviders, streamGenerate, saveStreamResult, FileAction, StreamEvent } from '../../services/streamClient';
-import { getActiveProvider, getKeyFor } from '../../pages/ProviderSettings';
+import { getActiveProvider, getKeyFor, isDefaultProviderExplicit } from '../../pages/ProviderSettings';
+import { friendlyError } from '../../lib/streamErrors';
 import { TOKENS, I } from '../../design';
 
 interface AIPromptProps {
@@ -41,6 +42,8 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
   // below compile but are never reached (no user-facing dead toggle).
   const streamMode = true;
   const [provider, setProvider] = useState<string>(getActiveProvider().provider);
+  // True once the user touches the dropdown: Pro then won't override their pick.
+  const [providerTouched, setProviderTouched] = useState(false);
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [allProviders, setAllProviders] = useState<string[]>([]);
   const [streamLog, setStreamLog] = useState<string[]>([]);
@@ -145,6 +148,7 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
     const { provider: defaultProv } = getActiveProvider();
     const activeProvider = provider || defaultProv;
     const activeKey = groqAPIKey || getKeyFor(activeProvider);
+    let usedProvider = activeProvider;
 
     const log = (s: string) => setStreamLog((prev) => (prev.length > 800 ? [...prev.slice(-800), s] : [...prev, s]));
 
@@ -178,8 +182,13 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
         log(`✓ done — ${model || '?'} · ${tokens ?? '?'} tokens`);
       } else if (ev.type === 'continue') {
         log(`… big build, continuing (part ${ev.round + 1}, ${ev.filesSoFar} files so far)`);
+      } else if (ev.type === 'route') {
+        usedProvider = ev.provider;
+      } else if (ev.type === 'notice') {
+        if (ev.provider) usedProvider = ev.provider;
+        log(ev.message);
       } else if (ev.type === 'error') {
-        setStreamError(ev.message);
+        setStreamError(friendlyError(ev, usedProvider));
         log(`✗ ${ev.message}`);
       } else if (ev.type === 'complete') {
         log('─── stream complete ───');
@@ -188,14 +197,14 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
 
     try {
       const { promise } = streamGenerate(
-        { prompt: prompt.trim(), appType, provider: activeProvider, apiKey: activeKey, refineFrom: refineFromContext },
+        { prompt: prompt.trim(), appType, provider: activeProvider, apiKey: activeKey, refineFrom: refineFromContext, providerExplicit: providerTouched || isDefaultProviderExplicit() },
         onEvent,
       );
       await promise;
     } catch (err: any) {
       const msg = err?.message || String(err);
-      setStreamError(msg);
-      // Also log it so the output panel renders (401/402/503/network errors).
+      setStreamError(friendlyError(msg, usedProvider));
+      // Raw text goes to the log so the output panel renders (401/402/503/network errors).
       log(`✗ ${msg}`);
     } finally {
       setStreamRunning(false);
@@ -231,7 +240,7 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
         dispatch(fetchApp(appId));
       }
     } catch (err: any) {
-      setStreamError(err?.message || String(err));
+      setStreamError(friendlyError(err?.message || String(err)));
     } finally {
       setSaving(false);
     }
@@ -272,7 +281,7 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
             <span style={{ fontSize: 11.5, color: TOKENS.text3 }}>Provider</span>
             <select
               value={provider}
-              onChange={(e) => setProvider(e.target.value)}
+              onChange={(e) => { setProvider(e.target.value); setProviderTouched(true); }}
               disabled={busy}
               style={{
                 flex: 1,
@@ -420,18 +429,19 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
 
           {/* Log */}
           {streamLog.length > 0 && (
-            <div>
-              <div
+            <details open={!streamError}>
+              <summary
                 style={{
                   fontSize: 10.5,
                   color: TOKENS.text4,
                   textTransform: 'uppercase',
                   letterSpacing: '0.08em',
                   marginBottom: 6,
+                  cursor: 'pointer',
                 }}
               >
                 Log
-              </div>
+              </summary>
               <pre
                 style={{
                   fontFamily: TOKENS.mono,
@@ -451,7 +461,7 @@ const AIPrompt: React.FC<AIPromptProps> = ({ appId, app }) => {
                 {streamLog.join('\n')}
                 <div ref={logEndRef} />
               </pre>
-            </div>
+            </details>
           )}
 
           {streamError && (

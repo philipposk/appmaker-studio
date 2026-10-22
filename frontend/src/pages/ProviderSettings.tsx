@@ -64,6 +64,8 @@ const PROVIDER_INFO: Record<string, { label: string; keyEnv: string; help: strin
 
 const LS_KEYS = 'appmaker.providerKeys';
 const LS_DEFAULT = 'appmaker.defaultProvider';
+/** Set once the user changes the default provider themselves (Pro/owner then stop defaulting to "pro"). */
+const LS_DEFAULT_EXPLICIT = 'appmaker.defaultProviderExplicit';
 
 function loadKeys(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(LS_KEYS) || '{}'); }
@@ -78,6 +80,7 @@ const ProviderSettings: React.FC = () => {
   const [all, setAll] = useState<string[]>([]);
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [defaultProvider, setDefaultProvider] = useState<string>('groq');
+  const [defaultTouched, setDefaultTouched] = useState(false);
   const [savedFlash, setSavedFlash] = useState<string>('');
   const [loadError, setLoadError] = useState<string>('');
 
@@ -95,6 +98,7 @@ const ProviderSettings: React.FC = () => {
   const handleSave = () => {
     saveKeys(keys);
     localStorage.setItem(LS_DEFAULT, defaultProvider);
+    if (defaultTouched) localStorage.setItem(LS_DEFAULT_EXPLICIT, 'true');
     setSavedFlash('Saved');
     window.setTimeout(() => setSavedFlash(''), 1500);
   };
@@ -202,7 +206,7 @@ const ProviderSettings: React.FC = () => {
             </div>
             <select
               value={defaultProvider}
-              onChange={(e) => setDefaultProvider(e.target.value)}
+              onChange={(e) => { setDefaultProvider(e.target.value); setDefaultTouched(true); }}
               style={{
                 background: TOKENS.panel2,
                 border: `1px solid ${TOKENS.hairline2}`,
@@ -405,4 +409,12 @@ export function getActiveProvider(): { provider: string; apiKey?: string } {
 export function getKeyFor(provider: string): string | undefined {
   const key = loadKeys()[provider];
   return typeof key === 'string' && key.trim() ? key.trim() : undefined;
+}
+
+/**
+ * True when the user picked the default provider themselves in Settings.
+ * Pro/owner accounts build on "pro" unless this is set.
+ */
+export function isDefaultProviderExplicit(): boolean {
+  try { return localStorage.getItem(LS_DEFAULT_EXPLICIT) === 'true'; } catch { return false; }
 }

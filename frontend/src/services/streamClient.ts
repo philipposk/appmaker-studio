@@ -12,12 +12,15 @@
 import { supabase } from '../lib/supabase';
 import { buildGeneratedCode, getAppFiles } from '../lib/appFiles';
 import { getBillingStatus, invalidateBillingStatus, isProPlan, showUpgrade, BillingStatus } from '../lib/billing';
+import { fallbackNotice, isFallbackEligible } from '../lib/streamErrors';
 
 export type StreamEvent =
   | { type: 'token'; delta: string }
   | { type: 'action'; action: FileAction }
   | { type: 'done'; usage?: any; model?: string; charged_usd?: number; balance_usd?: number }
-  | { type: 'error'; message: string; code?: string }
+  | { type: 'error'; message: string; code?: string; status?: number }
+  | { type: 'route'; provider: string }
+  | { type: 'notice'; message: string; model?: string; provider?: string }
   | { type: 'continue'; round: number; filesSoFar: number }
   | { type: 'complete'; ok: boolean }
   // autofix events (kept for forward-compat, AutoFix now runs in browser)
@@ -42,6 +45,8 @@ export interface GenerateOptions {
   model?: string;
   temperature?: number;
   refineFrom?: string;
+  /** The user picked `provider` for this request (dropdown or Settings); Pro won't override it. */
+  providerExplicit?: boolean;
 }
 
 /**
@@ -117,25 +122,44 @@ export function postSSE(
   return { promise, cancel: () => controller.abort() };
 }
 
+export interface Route {
+  opts: GenerateOptions;
+  /** Own-key request that Pro can take over if it fails before any output. */
+  canFallback: boolean;
+}
+
+const proUsable = (s: BillingStatus | null): boolean =>
+  !!s && isProPlan(s) && (s.plan === 'owner' || s.balance_usd > 0);
+
 /**
- * Decide who pays for this generation. The user's own key wins; otherwise a
- * Pro (or owner) account runs on the platform key ("pro"). Anyone else gets
- * the "add a key or go Pro" modal instead of a request.
+ * Decide who pays for this generation.
+ * - Pro/owner accounts default to "pro" (platform key) unless the user
+ *   explicitly picked another provider.
+ * - An explicit own key is used as chosen; if it fails before any output, Pro
+ *   (when usable) can take over (see streamGenerate).
+ * - Anyone else without a key gets the "add a key or go Pro" modal.
  */
-async function routeRequest(opts: GenerateOptions): Promise<GenerateOptions> {
-  const ownKey = opts.provider !== 'pro' && (opts.apiKey?.trim() || opts.provider === 'ollama');
-  if (ownKey) return opts;
-  let status: BillingStatus;
-  // A failed lookup is not "free": don't nag a paying user with the upgrade modal.
-  try { status = await getBillingStatus(); } catch {
-    throw new Error("Couldn't check your plan. Try again in a moment.");
+export async function routeRequest(opts: GenerateOptions): Promise<Route> {
+  const hasOwnKey = opts.provider !== 'pro' && !!(opts.apiKey?.trim() || opts.provider === 'ollama');
+  const asPro: GenerateOptions = { ...opts, provider: 'pro', apiKey: undefined, model: undefined };
+
+  let status: BillingStatus | null = null;
+  try { status = await getBillingStatus(); } catch { /* handled below */ }
+
+  if (hasOwnKey) {
+    // Lookup failure with an own key: just use the key, no Pro safety net.
+    if (proUsable(status) && !opts.providerExplicit) return { opts: asPro, canFallback: false };
+    return { opts, canFallback: proUsable(status) };
   }
+
+  // A failed lookup is not "free": don't nag a paying user with the upgrade modal.
+  if (!status) throw new Error("Couldn't check your plan. Try again in a moment.");
   if (isProPlan(status)) {
     if (status.plan === 'pro' && status.balance_usd <= 0) {
       showUpgrade('no_credits', status.balance_usd);
       throw new Error('Out of credits. Top up to keep building.');
     }
-    return { ...opts, provider: 'pro', apiKey: undefined, model: undefined };
+    return { opts: asPro, canFallback: false };
   }
   showUpgrade('needs_key_or_pro');
   throw new Error('Add your own API key, or upgrade to Pro to build with ours.');
@@ -154,25 +178,58 @@ export function streamGenerate(opts: GenerateOptions, onEvent: (ev: StreamEvent)
   let inner: { promise: Promise<void>; cancel: () => void } | null = null;
   let cancelled = false;
   const promise = (async () => {
-    const routed = await routeRequest(opts);
+    const route = await routeRequest(opts);
+    let base = route.opts;
+    let canFallback = route.canFallback;
+    if (base.provider) onEvent({ type: 'route', provider: base.provider });
     const written = new Map<string, string>();
-    let req = routed;
+    let req = base;
     for (let round = 0; !cancelled; round++) {
       let timedOut = false;
+      // While the own-key attempt has produced no output, hold its error/done
+      // so a failure can be retried on Pro without the user seeing it.
+      const hold = canFallback;
+      let output = false;
+      let heldError: Extract<StreamEvent, { type: 'error' }> | null = null;
+      const held: StreamEvent[] = [];
       inner = postSSE(EDGE_STREAM_URL, req, (ev) => {
         if (ev.type === 'action' && ev.action.type === 'file') written.set(ev.action.path, ev.action.content);
         if (ev.type === 'done' && ev.balance_usd !== undefined) invalidateBillingStatus();
         if (ev.type === 'error' && ev.code === 'timeout' && round < MAX_CONTINUES) { timedOut = true; return; }
+        if (ev.type === 'token' || ev.type === 'action') {
+          output = true;
+          while (held.length) onEvent(held.shift()!);
+        } else if (hold && !output && (ev.type === 'error' || ev.type === 'done')) {
+          if (ev.type === 'error') heldError = ev;
+          held.push(ev);
+          return;
+        }
         onEvent(ev);
       });
-      await inner.promise;
+      try {
+        await inner.promise;
+      } catch (err) {
+        while (held.length) onEvent(held.shift()!);
+        throw err;
+      }
+
+      if (hold && !output && heldError && !cancelled && isFallbackEligible(heldError)) {
+        onEvent({ type: 'notice', message: fallbackNotice(base.provider, heldError), provider: 'pro' });
+        base = { ...base, provider: 'pro', apiKey: undefined, model: undefined };
+        req = base;
+        canFallback = false;
+        round--; // the failed attempt is not a continuation round
+        continue;
+      }
+      while (held.length) onEvent(held.shift()!);
+
       if (!timedOut || cancelled) return;
 
       onEvent({ type: 'continue', round: round + 1, filesSoFar: written.size });
       const soFar = Array.from(written, ([path, content]) => `--- ${path}\n${content}`).join('\n\n');
       req = {
-        ...routed,
-        refineFrom: [routed.refineFrom, soFar].filter(Boolean).join('\n\n'),
+        ...base,
+        refineFrom: [base.refineFrom, soFar].filter(Boolean).join('\n\n'),
         prompt:
           `CONTINUE an interrupted build. Original request: ${opts.prompt.slice(0, 4000)}\n` +
           `Already written (full content is in the context): ${Array.from(written.keys()).join(', ') || 'none'}.\n` +

@@ -4,7 +4,8 @@ import { useAppDispatch, useAppSelector } from '../utils/hooks';
 import { fetchApps } from '../store/slices/appSlice';
 import { TOKENS, I, Sidebar, Pill, IconProps } from '../design';
 import { streamGenerate, saveStreamResult, FileAction, StreamEvent } from '../services/streamClient';
-import { getActiveProvider } from './ProviderSettings';
+import { getActiveProvider, isDefaultProviderExplicit } from './ProviderSettings';
+import { friendlyError } from '../lib/streamErrors';
 
 /**
  * Home / Dashboard — "What should we build today?" hero with prompt
@@ -83,6 +84,7 @@ const Dashboard: React.FC = () => {
     setError('');
 
     const { provider, apiKey } = getActiveProvider();
+    let usedProvider = provider;
     const started = Date.now();
     // Accumulators outside of React state so we can use the final values
     // after the stream completes without racing against batched setState.
@@ -124,8 +126,14 @@ const Dashboard: React.FC = () => {
       } else if (ev.type === 'continue') {
         accLog.push(`… big build, continuing (part ${ev.round + 1}, ${ev.filesSoFar} files so far)`);
         setLog([...accLog]);
+      } else if (ev.type === 'route') {
+        usedProvider = ev.provider;
+      } else if (ev.type === 'notice') {
+        if (ev.provider) usedProvider = ev.provider;
+        accLog.push(ev.message);
+        setLog([...accLog]);
       } else if (ev.type === 'error') {
-        setError(ev.message);
+        setError(friendlyError(ev, usedProvider));
         accLog.push(`ERROR: ${ev.message}`);
         setLog([...accLog]);
       }
@@ -133,12 +141,14 @@ const Dashboard: React.FC = () => {
 
     try {
       const { promise } = streamGenerate(
-        { prompt: prompt.trim(), appType: 'web', provider, apiKey },
+        { prompt: prompt.trim(), appType: 'web', provider, apiKey, providerExplicit: isDefaultProviderExplicit() },
         onEvent,
       );
       await promise;
     } catch (err: any) {
-      setError(err?.message || String(err));
+      setError(friendlyError(err?.message || String(err), usedProvider));
+      accLog.push(`ERROR: ${err?.message || String(err)}`);
+      setLog([...accLog]);
       setRunning(false);
       return;
     } finally {
@@ -149,7 +159,7 @@ const Dashboard: React.FC = () => {
       try {
         const res = await saveStreamResult({
           prompt: prompt.trim(),
-          provider,
+          provider: usedProvider,
           model: accModel,
           files: accFiles,
           streamLog: accLog.join('\n'),
@@ -160,7 +170,7 @@ const Dashboard: React.FC = () => {
         });
         if (res?.app?._id) navigate(`/apps/${res.app._id}/builder`);
       } catch (err: any) {
-        setError(err?.message || String(err));
+        setError(friendlyError(err?.message || String(err), usedProvider));
       }
     }
   };
@@ -473,18 +483,19 @@ const StreamPanel: React.FC<{
           ))}
         </ul>
       </div>
-      <div>
-        <div
+      <details open={!error}>
+        <summary
           style={{
             fontSize: 11,
             color: TOKENS.text4,
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
             marginBottom: 6,
+            cursor: 'pointer',
           }}
         >
           Log
-        </div>
+        </summary>
         <pre
           style={{
             fontFamily: TOKENS.mono,
@@ -502,7 +513,7 @@ const StreamPanel: React.FC<{
         >
           {log.join('\n')}
         </pre>
-      </div>
+      </details>
     </div>
     {error && (
       <div style={{ marginTop: 10, color: '#FF8E72', fontSize: 12 }}>
