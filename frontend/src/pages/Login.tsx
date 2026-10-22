@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '../utils/hooks';
 import { login, clearError } from '../store/slices/authSlice';
 import { supabase } from '../lib/supabase';
 import { TOKENS, I, Logo } from '../design';
+import { GoogleIdentityButton } from "../components/GoogleIdentityButton";
 
 const Login: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -42,20 +43,22 @@ const Login: React.FC = () => {
           <p style={{ color: TOKENS.text3, fontSize: 14, marginTop: 8 }}>Sign in to your account</p>
         </div>
 
-        <button
-          onClick={handleGoogle}
-          disabled={oauthLoading || loading}
-          style={{
-            width: '100%', padding: '11px 16px', borderRadius: 9,
-            border: `1px solid ${TOKENS.hairline2}`, background: TOKENS.panel,
-            color: TOKENS.text1, fontSize: 14, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            marginBottom: 16, fontFamily: TOKENS.sans,
-          }}
-        >
-          <I.Globe size={16} />
-          {oauthLoading ? 'Redirecting…' : 'Continue with Google'}
-        </button>
+        <GoogleIdentityButton getSupabase={() => supabase} onSignedIn={() => window.location.assign("/dashboard")}>
+          <button
+            onClick={handleGoogle}
+            disabled={oauthLoading || loading}
+            style={{
+              width: '100%', padding: '11px 16px', borderRadius: 9,
+              border: `1px solid ${TOKENS.hairline2}`, background: TOKENS.panel,
+              color: TOKENS.text1, fontSize: 14, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              marginBottom: 16, fontFamily: TOKENS.sans,
+            }}
+          >
+            <I.Globe size={16} />
+            {oauthLoading ? 'Redirecting…' : 'Continue with Google'}
+          </button>
+        </GoogleIdentityButton>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <span style={{ flex: 1, height: 1, background: TOKENS.hairline }} />
