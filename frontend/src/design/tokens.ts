@@ -14,7 +14,7 @@ export const TOKENS = {
   hairline2: '#2C2C38',
   text1: '#F2F2F5',
   text2: '#A6A6B0',
-  text3: '#666673',
+  text3: '#868693', // 4.6:1+ on every panel (was 3.5)
   text4: '#42424D',
   accent: '#14B8A6',
   accentSoft: 'rgba(20,184,166,0.14)',

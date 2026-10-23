@@ -110,7 +110,7 @@ const Register: React.FC = () => {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <span style={{ flex: 1, height: 1, background: TOKENS.hairline }} />
-        <span style={{ fontSize: 12, color: TOKENS.text4 }}>or email</span>
+        <span style={{ fontSize: 12, color: TOKENS.text3 }}>or email</span>
         <span style={{ flex: 1, height: 1, background: TOKENS.hairline }} />
       </div>
 
@@ -155,7 +155,7 @@ const Register: React.FC = () => {
 
       <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13.5, color: TOKENS.text3 }}>
         Already have an account?{' '}
-        <a href="/login" style={{ color: TOKENS.accent, textDecoration: 'none' }}>Sign in</a>
+        <a href="/login" style={{ color: TOKENS.accent, textDecoration: 'underline', textUnderlineOffset: 2 }}>Sign in</a>
       </p>
     </Shell>
   );
