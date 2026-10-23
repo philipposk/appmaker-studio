@@ -62,7 +62,7 @@ const Login: React.FC = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <span style={{ flex: 1, height: 1, background: TOKENS.hairline }} />
-          <span style={{ fontSize: 12, color: TOKENS.text4 }}>or email</span>
+          <span style={{ fontSize: 12, color: TOKENS.text3 }}>or email</span>
           <span style={{ flex: 1, height: 1, background: TOKENS.hairline }} />
         </div>
 
@@ -103,7 +103,7 @@ const Login: React.FC = () => {
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13.5, color: TOKENS.text3 }}>
           No account?{' '}
-          <a href="/register" style={{ color: TOKENS.accent, textDecoration: 'none' }}>Create one</a>
+          <a href="/register" style={{ color: TOKENS.accent, textDecoration: 'underline', textUnderlineOffset: 2 }}>Create one</a>
         </p>
       </div>
     </div>
