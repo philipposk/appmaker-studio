@@ -82,7 +82,7 @@ export const login = createAsyncThunk(
  *  auth-js removes the local session even if the network revoke fails, so this
  *  reliably logs the user out. The SIGNED_OUT listener also fires setSession(null). */
 export const logout = createAsyncThunk('auth/logout', async () => {
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: 'local' });
 });
 
 export const register = createAsyncThunk(
